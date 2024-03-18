@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "porran"
 version = "0.0.1"
 authors = [
-  { name="Marko Petkovic", email="m.petkovic1@tue.nl" },
+  { name="Marko Petkovic"},
+  {email="m.petkovic1@tue.nl" },
 ]
 description = "PORous RANdom crystal structure generation"
 readme = "README.md"

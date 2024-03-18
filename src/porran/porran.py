@@ -8,6 +8,7 @@ from typing import Union, List, Callable, Optional
 
 from time import time
 import numpy as np
+import os
 
 from pymatgen.io.cif import CifParser
 from pymatgen.core import Structure
@@ -58,7 +59,9 @@ class PORRAN():
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs)
     
 
-    def change_graph_method(self, graph_method: Union[str, Callable], *args, **kwargs):
+    def change_graph_method(self, graph_method: Union[str, Callable],
+                            mask_method: Optional[Union[List[str], np.array, str]] = None,
+                            *args, **kwargs):
         '''
         Change the method to build the graph
         
@@ -66,13 +69,17 @@ class PORRAN():
         ----------
         graph_method : Union[str, Callable]
             Method to build the graph. If str, it can be 'zeolite' or 'radius'
-
+        mask_method : Optional[Union[List[str], np.array]]
+            Method to select atoms to include in the graph. 
+            To directly select atoms, its possible to provide an np.array with the indices of the atoms to include set to 1
+            To select atoms by species, provide a list of species to include
         Returns
         -------
         None
         '''
         self.graph_method = self._get_graph_method(graph_method)
-        self.structure_graph = self.graph_method(self.structure, *args, **kwargs)
+        self.mask = self._get_mask(mask_method)
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask,*args, **kwargs)
 
     def generate_structures(self, n_structures: int, replace_algo: Union[str, Callable], 
                             create_algo: Union[str, Callable], n_subs: int, max_tries: int = 100,
@@ -109,6 +116,15 @@ class PORRAN():
         List[Structure]
             List of generated structures
         '''
+
+        if write:
+            if not os.path.exists(writepath):
+                os.makedirs(writepath)
+            elif not os.listdir(writepath):
+                pass
+            else:
+                raise ValueError(f'Path {writepath} already contains files. Please provide an empty or non-existing path or set write to False.')
+
         self.replace_algo = self._get_replace_algo(replace_algo)
         self.create_algo = self._get_create_algo(create_algo)
         self.post_algo = post_algo

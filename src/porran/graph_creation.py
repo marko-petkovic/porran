@@ -1,0 +1,100 @@
+from pymatgen.core import Structure
+
+import networkx as nx
+import numpy as np
+
+
+def zeo_graph(structure : Structure, *args, **kwargs):
+    '''
+    Create a graph from a zeolite
+    Edges in the graph are defined by T-O-T connections, where T is a tetrahedral atom
+
+    Parameters
+    ----------
+    structure : Structure
+        Structure object of the all silica zeolite
+
+    Returns
+    -------
+    nx.Graph
+        Graph of the zeolite
+    '''
+
+    # Get indices of Si and O atoms
+    si_inds = np.array([i for i, site in enumerate(structure) if site.species_string == 'Si'])
+    o_inds = np.array([i for i, site in enumerate(structure) if site.species_string == 'O'])
+
+    
+
+    # Get all T-O-T connections
+    d = structure.distance_matrix
+    # get the Si-O distances
+    si_o_dists = d[si_inds][:, o_inds]
+    # get closest 2 Sis to each O
+    edge_ind = np.argsort(si_o_dists, axis=0)[:2]
+
+    # Create graph
+    G = nx.Graph()
+
+    G.add_nodes_from(np.arange(si_inds.shape[0]))
+
+    for i in range(edge_ind.shape[1]):
+        node1, node2 = edge_ind[:, i]
+        G.add_edge(node1, node2)
+
+    for i in range(len(G.nodes)):
+        G.nodes[i]['value'] = 0
+
+    return G
+
+
+def radius_graph(structure : Structure, radius : float, mask : np.array = None, *args, **kwargs):
+    '''
+    Create a graph from a structure
+    Edges in the graph are defined by atoms within a certain radius of each other
+    Mask can be used to only include certain atoms in the graph
+
+    Parameters
+    ----------
+    structure : Structure
+        Structure object of the all silica zeolite
+    radius : float
+        Radius to define edges
+    mask : np.array, optional
+        Array of bools to select atoms in the graph
+
+    Returns
+    -------
+    nx.Graph
+        Graph of the structure
+    '''
+
+    # get distance matrix and apply mask
+    d = structure.distance_matrix
+
+    # set all distance to self to inf
+    np.fill_diagonal(d, np.inf)
+
+    # apply mask
+    if mask is not None:
+        d = d[mask][:, mask]
+        atom_inds = np.arange(len(structure))[mask]
+    else:
+        atom_inds = np.arange(len(structure))
+
+    edge_ind = np.argwhere(d < radius).T
+
+    # Create graph
+    G = nx.Graph()
+
+    G.add_nodes_from(np.arange(atom_inds.shape[0]))
+
+    for i in range(edge_ind.shape[1]):
+        node1, node2 = edge_ind[:, i]
+        G.add_edge(node1, node2)
+
+    for i in range(len(G.nodes)):
+        G.nodes[i]['value'] = 0
+
+
+    return G

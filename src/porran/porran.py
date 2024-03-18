@@ -1,7 +1,7 @@
-from graph_manipulation.graph_creation import radius_graph, zeo_graph
-from graph_manipulation.replacement_algorithms import random, clusters, chains, maximize_entropy
-from graph_manipulation.create_structure import create_zeo
-from graph_manipulation.mask_method import mask_zeo
+from .graph_creation import radius_graph, zeo_graph
+from .replacement_algorithms import random, clusters, chains, maximize_entropy
+from .create_structure import create_zeo
+from .mask_method import mask_zeo
 
 
 from typing import Union, List, Callable, Optional

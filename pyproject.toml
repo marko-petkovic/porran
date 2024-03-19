@@ -21,6 +21,7 @@ dependencies = [
     "numpy",
     "pymatgen",
     "networkx",
+    "requests",
 ]
 
 [project.urls]

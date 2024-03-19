@@ -2,7 +2,7 @@ from .graph_creation import radius_graph, zeo_graph
 from .replacement_algorithms import random, clusters, chains, maximize_entropy
 from .create_structure import create_zeo
 from .mask_method import mask_zeo
-
+from .get_zeolite import get_zeolite
 
 from typing import Union, List, Callable, Optional
 
@@ -54,6 +54,33 @@ class PORRAN():
         None
         '''
         self.structure = self._read_structure(cif_path, check_cif)
+        self.graph_method = self._get_graph_method(graph_method)
+        self.mask = self._get_mask(mask_method)
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs)
+
+    def from_IZA_code(self, zeolite_code: str,
+                      graph_method: Union[str, Callable],
+                      mask_method: Optional[Union[List[str], np.array, str]] = None,
+                      *args, **kwargs):
+        '''
+        Initialize the structure from an IZA code
+
+        Parameters
+        ----------
+        zeolite_code : str
+            IZA code of the zeolite
+        graph_method : Union[str, Callable]
+            Method to build the graph. If str, it can be 'zeolite' or 'radius'
+        mask_method : Optional[Union[List[str], np.array]]
+            Method to select atoms to include in the graph. 
+            To directly select atoms, its possible to provide an np.array with the indices of the atoms to include set to 1
+            To select atoms by species, provide a list of species to include
+        
+        Returns
+        -------
+        None
+        '''
+        self.structure = get_zeolite(zeolite_code)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask = self._get_mask(mask_method)
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs)

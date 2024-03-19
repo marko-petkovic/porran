@@ -15,7 +15,7 @@ pip install porran
 It is also possible to install PORRAN directly from the source. This can be done using the commands bellow:
 ```
 git clone https://github.com/marko-petkovic/porran.git
-cd schnetpack
+cd porran
 pip install .
 ```
 

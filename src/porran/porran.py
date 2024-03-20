@@ -1,7 +1,7 @@
 from .graph_creation import radius_graph, zeo_graph
 from .replacement_algorithms import random, clusters, chains, maximize_entropy
 from .create_structure import create_zeo
-from .mask_method import mask_zeo
+from .mask_method import mask_zeo, mask_species, mask_all, mask_array
 from .get_zeolite import get_zeolite
 
 from typing import Union, List, Callable, Optional
@@ -55,7 +55,8 @@ class PORRAN():
         '''
         self.structure = self._read_structure(cif_path, check_cif)
         self.graph_method = self._get_graph_method(graph_method)
-        self.mask = self._get_mask(mask_method)
+        self.mask_method = self._get_mask_method(mask_method)
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs)
 
     def from_IZA_code(self, zeolite_code: str,
@@ -82,7 +83,8 @@ class PORRAN():
         '''
         self.structure = get_zeolite(zeolite_code)
         self.graph_method = self._get_graph_method(graph_method)
-        self.mask = self._get_mask(mask_method)
+        self.mask_method = self._get_mask_method(mask_method)
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs)
     
 
@@ -105,7 +107,8 @@ class PORRAN():
         None
         '''
         self.graph_method = self._get_graph_method(graph_method)
-        self.mask = self._get_mask(mask_method)
+        self.mask_method = self._get_mask_method(mask_method)
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
         self.structure_graph = self.graph_method(self.structure, mask=self.mask,*args, **kwargs)
 
     def generate_structures(self, n_structures: int, replace_algo: Union[str, Callable], 
@@ -193,24 +196,18 @@ class PORRAN():
             print(f'Failed to generate new structures {total_failed} times')
         return structures
     
-    def _get_mask(self, mask_method: Optional[Union[List[str], np.array, str]]):
+    def _get_mask_method(self, mask_method: Optional[Union[List[str], np.array, str]]):
         if mask_method is None:
-            return np.ones(len(self.structure), dtype=bool)
+            return mask_all
         elif isinstance(mask_method, str):
             if mask_method == 'zeolite':
-                return mask_zeo(self.structure)
+                return mask_zeo
             else:
                 raise ValueError(f'Unknown mask method: {mask_method}')
         elif isinstance(mask_method, list):
-            mask = np.zeros(len(self.structure), dtype=bool)
-            x = 0
-            for s in self.structure:
-                if s.species_string in mask_method:
-                    mask[x] = True
-                x += 1
-            return mask
+            return mask_species
         elif isinstance(mask_method, np.ndarray):
-            return mask_method.astype(bool)
+            return mask_array
         else:
             raise ValueError('Unknown mask method')
 

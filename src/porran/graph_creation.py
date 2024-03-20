@@ -3,6 +3,8 @@ from pymatgen.core import Structure
 import networkx as nx
 import numpy as np
 
+import warnings
+
 
 def zeo_graph(structure : Structure, *args, **kwargs):
     '''
@@ -44,6 +46,8 @@ def zeo_graph(structure : Structure, *args, **kwargs):
 
     for i in range(len(G.nodes)):
         G.nodes[i]['value'] = 0
+
+    check_graph(G)
 
     return G
 
@@ -96,5 +100,31 @@ def radius_graph(structure : Structure, radius : float, mask : np.array = None, 
     for i in range(len(G.nodes)):
         G.nodes[i]['value'] = 0
 
+    check_graph(G)
 
     return G
+
+
+def check_graph(G : nx.Graph):
+    '''
+    Perform checks on a graph
+    Some replacament algorithms might not work if a warning is given
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Graph to check
+
+    Returns
+    -------
+    None
+    '''
+    n_edges = len(G.edges)
+    if n_edges == 0:
+        warnings.warn('Graph has no edges')
+    
+    conn = nx.is_connected(G)
+    if not conn:
+        warnings.warn('Graph is not connected')
+
+    

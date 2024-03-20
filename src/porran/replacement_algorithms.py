@@ -74,6 +74,8 @@ def clusters(G : nx.Graph, n_subs : int, node_idx : Optional[int] = None, *args,
             added_neighbours = np.random.choice(list(added_neighbours), n_subs - len(neighbours), replace=False)
             neighbours = neighbours.union(added_neighbours)
             break
+        elif len(added_neighbours) == 0:
+            raise ValueError('No neighbours left!')
         else:
             neighbours = neighbours.union(added_neighbours)
     

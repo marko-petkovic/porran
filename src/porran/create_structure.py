@@ -1,5 +1,5 @@
 from pymatgen.core import Structure
-
+from typing import List
 import numpy as np
 
 
@@ -18,8 +18,8 @@ def create_zeo(structure : Structure, mask, replacement_inds, *args, **kwargs):
     
     Returns
     -------
-    Structure
-        Structure with Si atoms replaced by Al atoms
+    List[Structure]
+        List with a single Structure with Si atoms replaced by Al atoms
     '''
 
     
@@ -30,5 +30,5 @@ def create_zeo(structure : Structure, mask, replacement_inds, *args, **kwargs):
     structure_copy = structure.copy()
     structure_copy[inds] = 'Al'
 
-    return structure_copy
+    return [structure_copy]
     

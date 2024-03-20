@@ -181,9 +181,10 @@ class PORRAN():
             new_structure = self.create_algo(self.structure, self.mask, sub_array, *args, **kwargs)
             if self.post_algo is not None:
                 new_structure = self.post_algo(new_structure, *args, **kwargs)
-            structures.append(new_structure)
+            structures.extend(new_structure)
             if write:
-                self._write_structure(new_structure, writepath, i)
+                for j in range(len(new_structure)):
+                    self._write_structure(new_structure, writepath, i*j+j)
         
         end = time()
         if verbose:

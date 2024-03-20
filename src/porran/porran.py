@@ -1,8 +1,9 @@
 from .graph_creation import radius_graph, zeo_graph
 from .replacement_algorithms import random, clusters, chains, maximize_entropy
 from .create_structure import create_zeo
-from .mask_method import mask_zeo, mask_species, mask_all, mask_array
+from .mask_method import mask_zeo, mask_species, mask_all, mask_array, mask_combination, mask_box
 from .get_zeolite import get_zeolite
+from .utils import is_atom
 
 from typing import Union, List, Callable, Optional
 
@@ -187,7 +188,7 @@ class PORRAN():
             structures.extend(new_structure)
             if write:
                 for j in range(len(new_structure)):
-                    self._write_structure(new_structure, writepath, i*j+j)
+                    self._write_structure(new_structure[j], writepath, i*len(new_structure)+j)
         
         end = time()
         if verbose:
@@ -205,9 +206,20 @@ class PORRAN():
             else:
                 raise ValueError(f'Unknown mask method: {mask_method}')
         elif isinstance(mask_method, list):
-            return mask_species
+            # if all elements of the list are atoms, return mask_species
+            if all([type(msk) == str for msk in mask_method]) and all([is_atom(species) for species in mask_method]):
+                return mask_species
+            # otherwise, create a combination of the masks
+            else:
+                masks = [self._get_mask_method(msk_method) for msk_method in mask_method]
+                return mask_combination(masks)
         elif isinstance(mask_method, np.ndarray):
-            return mask_array
+            if len(mask_method.shape) == 1:
+                return mask_array
+            elif mask_method.shape == (3,2):
+                return mask_box
+            else:
+                raise ValueError('Mask array must be 1D or have shape (3,2)')
         else:
             raise ValueError('Unknown mask method')
 

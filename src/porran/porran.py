@@ -3,7 +3,7 @@ from .replacement_algorithms import random, clusters, chains, maximize_entropy
 from .create_structure import create_zeo
 from .mask_method import mask_zeo, mask_species, mask_all, mask_array, mask_combination, mask_box
 from .get_zeolite import get_zeolite
-from .utils import is_atom
+from .utils import is_atom, write_cif
 
 from typing import Union, List, Callable, Optional
 
@@ -271,7 +271,9 @@ class PORRAN():
         '''
         if writepath is None:
             writepath = 'structures'
-        structure.to(filename=f'{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif')
+        
+        write_cif(structure, filename=f'{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif')
+        # structure.to(filename=f'{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif')
 
     def _replace(self, n_subs: int, *args, **kwargs):
         '''

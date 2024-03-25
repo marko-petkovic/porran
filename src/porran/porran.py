@@ -54,6 +54,8 @@ class PORRAN():
         -------
         None
         '''
+        # name is the name of the cif file
+        self.name = cif_path.split('/')[-1].split('.')[0]
         self.structure = self._read_structure(cif_path, check_cif)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
@@ -82,6 +84,7 @@ class PORRAN():
         -------
         None
         '''
+        self.name = zeolite_code
         self.structure = get_zeolite(zeolite_code)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
@@ -268,7 +271,7 @@ class PORRAN():
         '''
         if writepath is None:
             writepath = 'structures'
-        structure.to(filename=f'{writepath}/structure_{i}.cif')
+        structure.to(filename=f'{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif')
 
     def _replace(self, n_subs: int, *args, **kwargs):
         '''

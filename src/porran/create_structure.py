@@ -3,8 +3,8 @@ from typing import List
 import numpy as np
 
 
-def create_zeo(structure : Structure, mask, replacement_inds, *args, **kwargs):
-    '''
+def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
+    """
     Creates a structure with Si atoms replaced by Al atoms
 
     Parameters
@@ -15,20 +15,18 @@ def create_zeo(structure : Structure, mask, replacement_inds, *args, **kwargs):
         Mask to select atoms to be replaced
     replacement_inds : np.array
         Indices of Si atoms to replace with Al atoms
-    
+
     Returns
     -------
     List[Structure]
         List with a single Structure with Si atoms replaced by Al atoms
-    '''
+    """
 
-    
     # select indices of Si atoms to replace
     inds = np.where(mask)[0]
     inds = inds[replacement_inds]
 
     structure_copy = structure.copy()
-    structure_copy[inds] = 'Al'
+    structure_copy[inds] = "Al"
 
     return [structure_copy]
-    

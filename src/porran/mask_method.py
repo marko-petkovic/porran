@@ -111,6 +111,40 @@ def mask_box(structure: Structure, box: np.array, *args, **kwargs):
     return mask
 
 
+def mask_h_on_c(structure: Structure, *args, **kwargs) -> np.ndarray:
+    """Create a mask which has True for all hydrogen atoms bonded to carbon atoms.
+
+    Parameters
+    ----------
+    structure : Structure
+        Structure object of a MOF.
+
+    Returns
+    -------
+    np.ndarray
+        Mask with True for hydrogen atoms bonded to carbon atoms.
+    """
+    # define the maximum distance to detect a C-H bond
+    max_ch_bond_length: float = 1.15  # Angstrom
+
+    # get the indices of all H and C atoms in the structure
+    h_indices = np.array(structure.indices_from_symbol("H"))
+    c_indices = np.array(structure.indices_from_symbol("C"))
+
+    # get a distance matrix between all H and C atoms in the structure
+    dm = structure.distance_matrix[h_indices, :][:, c_indices]  # shape: (n_H, n_C)
+
+    # find the indices of H atoms that are closer than
+    # max_ch_bond_length to one and only one C atom
+    h_indices_mask = np.sum(dm < max_ch_bond_length, axis=1) == 1
+
+    # create a mask for all atoms in the structure
+    mask = np.zeros(len(structure), dtype=bool)
+    mask[h_indices] = h_indices_mask
+
+    return mask
+
+
 def mask_combination(masks: List[Callable], *args, **kwargs):
     """
     Creates a function that combines multiple masks

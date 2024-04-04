@@ -1,6 +1,7 @@
-from pymatgen.core import Structure
-from typing import List, Callable
+from typing import Callable, List
+
 import numpy as np
+from pymatgen.core import Structure
 
 
 def mask_zeo(structure: Structure, *args, **kwargs):

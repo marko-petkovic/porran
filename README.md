@@ -23,7 +23,8 @@ pip install .
 More examples will follow in the future
 
 ### Examples
-An example on using PORRAN to generate zeolite structures (MOR) with Al substitutions can be found [here](examples/porran_example.ipynb). 
+- An example on using PORRAN to generate zeolite structures (MOR) with Al substitutions can be found [here](examples/porran_example.ipynb).
+- Using PORRAN to generate MOFs functionalized with lithium-alkoxide: [mofs_example](examples/mofs_example.ipynb).
 
 ## References
 \[1\] Romero-Marimon, P., Gutiérrez-Sevillano, J. J., & Calero, S. (2023). Adsorption of Carbon Dioxide in Non-Löwenstein Zeolites. *Chemistry of Materials*, 35(13), 5222-5231.

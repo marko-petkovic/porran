@@ -6,7 +6,7 @@ import numpy as np
 from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 
-from .create_structure import create_zeo
+from .create_structure import create_dmof, create_zeo
 from .get_zeolite import get_zeolite
 from .graph_creation import radius_graph, zeo_graph
 from .mask_method import (
@@ -14,6 +14,7 @@ from .mask_method import (
     mask_array,
     mask_box,
     mask_combination,
+    mask_h_on_c,
     mask_species,
     mask_zeo,
 )
@@ -249,6 +250,8 @@ class PORRAN:
         elif isinstance(mask_method, str):
             if mask_method == "zeolite":
                 return mask_zeo
+            elif mask_method == "h_on_c":
+                return mask_h_on_c
             else:
                 raise ValueError(f"Unknown mask method: {mask_method}")
         elif isinstance(mask_method, list):
@@ -292,6 +295,8 @@ class PORRAN:
         if isinstance(create_algo, str):
             if create_algo == "zeolite":
                 return create_zeo
+            if create_algo == "dmof":
+                return create_dmof
             else:
                 raise ValueError(f"Unknown create algorithm: {create_algo}")
         else:

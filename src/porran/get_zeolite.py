@@ -48,7 +48,7 @@ def get_zeolite(zeolite_code: str):
     response.raise_for_status()
     cif_string = StringIO(response.text)
     
-    parser = CifParser(cif_string, check_cif=False)
+    parser = CifParser(cif_string, check_cif=False, site_tolerance=0.001)
     structure = parser.parse_structures(primitive=False)[0]
 
     return structure

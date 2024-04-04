@@ -44,7 +44,7 @@ class PORRAN:
         cif_path: str,
         graph_method: Union[str, Callable],
         mask_method: Optional[Union[List[str], np.array, str]] = None,
-        check_cif: bool = False,
+        check_cif: bool = False, site_tolerance: float = 1e-3,
         *args,
         **kwargs,
     ):
@@ -63,7 +63,9 @@ class PORRAN:
             To select atoms by species, provide a list of species to include
         check_cif : bool, optional
             Check the cif file for errors, default is False
-
+        site_tolerance : float, optional
+            Tolerance for site matching, default is 1e-3
+    
         Returns
         -------
         None
@@ -150,7 +152,7 @@ class PORRAN:
         n_subs: int,
         max_tries: int = 100,
         post_algo: Optional[Callable] = None,
-        write: bool = False,
+        write: bool = False, overwrite_ok = False,
         writepath: Optional[str] = "structures",
         verbose: bool = True,
         *args,
@@ -192,7 +194,7 @@ class PORRAN:
                 os.makedirs(writepath)
             elif not os.listdir(writepath):
                 pass
-            else:
+            elif not overwrite_ok:
                 raise ValueError(
                     f"Path {writepath} already contains files. Please provide an empty or non-existing path or set write to False."
                 )
@@ -358,7 +360,7 @@ class PORRAN:
         else:
             return graph_method
 
-    def _read_structure(self, cif_path: str, check_cif: bool = False):
+    def _read_structure(self, cif_path: str, check_cif: bool = False, site_tolerance: float = 1e-3):
         """
         Read a structure from a cif file
 
@@ -374,7 +376,7 @@ class PORRAN:
         Structure
             Structure object of the cif file
         """
-        parser = CifParser(cif_path, check_cif=check_cif)
+        parser = CifParser(cif_path, check_cif=check_cif, site_tolerance=site_tolerance)
         structure = parser.parse_structures(primitive=False)[0]
         return structure
 

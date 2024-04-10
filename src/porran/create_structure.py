@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 from pymatgen.core import Molecule, Structure
+from scipy import spatial
 
 from .transformations import rotation_axis_angle
 
@@ -55,9 +56,21 @@ def create_dmof(
     structure : Structure
         The MOF to add functional groups to.
     mask : np.ndarray
-        _description_
+        Mask to select atoms to be replaced
     replacement_inds : np.ndarray
-        _description_
+        Indices to replace within the structure graph.
+    dopants: Molecule | List[Molecule]
+        Molecule(s) representing the functional groups to add. If a
+        single Molecule is provided, then that is used for all
+        replacements. If a List, it must have the same length as
+        replacement_inds.
+    max_attempts: int
+        A random rotation is applied to the dopant to avoid overlap with
+        existing sites at most max_attempts times. If there is still
+        overlap after that, the dopant is not placed and a warning is
+        logged.
+    rng: np.random.Generator, optional
+        Generator for random rotations.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -94,27 +107,51 @@ def create_dmof(
 
         # remove H from the structure
         structure_copy.remove_sites([h_i])
+        # create a KDTree for overlap check
+        point_tree = spatial.KDTree(data=structure_copy.cart_coords)
 
         # try to add the dopant to the structure
         for _ in range(max_attempts):
             dopant.rotate_sites(
                 theta=rng.uniform(0, 2 * np.pi), axis=direction, anchor=location
             )
-            try:
-                for site in dopant:
-                    structure_copy.append(
-                        species=site.species,
-                        coords=site.coords,
-                        coords_are_cartesian=True,
-                        validate_proximity=True,
-                        properties=site.properties,
-                    )
-                break
-            except ValueError as e:
-                # only catch the error if it is about proximity
-                if e.args[0] == "New site is too close to an existing site!":
-                    continue
-                raise e
+
+            # check for overlap with existing atoms
+            overlap = point_tree.query_ball_point(
+                x=dopant.cart_coords, r=structure_copy.DISTANCE_TOLERANCE, p=2
+            )
+            overlap = [
+                (i, existing_atom)
+                for i, atom_to_add in enumerate(overlap)
+                for existing_atom in atom_to_add
+            ]
+            if len(overlap) > 0:
+                continue
+            # no overlap, add the dopant
+            for site in dopant:
+                structure_copy.append(
+                    species=site.species,
+                    coords=site.coords,
+                    coords_are_cartesian=True,
+                    validate_proximity=False,
+                    properties=site.properties,
+                )
+            break
+            # try:
+            #     for site in dopant:
+            #         structure_copy.append(
+            #             species=site.species,
+            #             coords=site.coords,
+            #             coords_are_cartesian=True,
+            #             validate_proximity=True,
+            #             properties=site.properties,
+            #         )
+            #     break
+            # except ValueError as e:
+            #     # only catch the error if it is about proximity
+            #     if e.args[0] == "New site is too close to an existing site!":
+            #         continue
+            #     raise e
         else:
             logger.warning(
                 "Could not add dopant %s to the structure at index %d",

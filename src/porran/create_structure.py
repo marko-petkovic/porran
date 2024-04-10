@@ -107,8 +107,6 @@ def create_dmof(
 
         # remove H from the structure
         structure_copy.remove_sites([h_i])
-        # create a KDTree for overlap check
-        point_tree = spatial.KDTree(data=structure_copy.cart_coords)
 
         # try to add the dopant to the structure
         for _ in range(max_attempts):
@@ -117,16 +115,25 @@ def create_dmof(
             )
 
             # check for overlap with existing atoms
-            overlap = point_tree.query_ball_point(
-                x=dopant.cart_coords, r=structure_copy.DISTANCE_TOLERANCE, p=2
+            # get the fractional coordinates of the dopants.
+            d_frac = structure_copy.lattice.get_fractional_coords(
+                cart_coords=dopant.cart_coords
             )
-            overlap = [
-                (i, existing_atom)
-                for i, atom_to_add in enumerate(overlap)
-                for existing_atom in atom_to_add
-            ]
-            if len(overlap) > 0:
+            # calculate the distances between dopant and structure atoms
+            # along the lattice dimensions, taking periodic boundaries
+            # into account
+            frac_dists = np.abs(structure_copy.frac_coords[:, None] - d_frac)
+            frac_dists = np.where(frac_dists > 0.5, np.abs(1 - frac_dists), frac_dists)
+            # convert to cartesian distances
+            cart_dists = structure_copy.lattice.get_cartesian_coords(
+                fractional_coords=frac_dists
+            )
+            # calculate square of norm and compare to tolerance
+            if np.any(
+                np.sum(np.square(cart_dists), -1) < structure_copy.DISTANCE_TOLERANCE**2
+            ):
                 continue
+
             # no overlap, add the dopant
             for site in dopant:
                 structure_copy.append(
@@ -137,21 +144,6 @@ def create_dmof(
                     properties=site.properties,
                 )
             break
-            # try:
-            #     for site in dopant:
-            #         structure_copy.append(
-            #             species=site.species,
-            #             coords=site.coords,
-            #             coords_are_cartesian=True,
-            #             validate_proximity=True,
-            #             properties=site.properties,
-            #         )
-            #     break
-            # except ValueError as e:
-            #     # only catch the error if it is about proximity
-            #     if e.args[0] == "New site is too close to an existing site!":
-            #         continue
-            #     raise e
         else:
             logger.warning(
                 "Could not add dopant %s to the structure at index %d",

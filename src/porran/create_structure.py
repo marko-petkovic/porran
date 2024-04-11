@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 from pymatgen.core import Molecule, Structure
+from scipy import spatial
 
 from .transformations import rotation_axis_angle
 
@@ -55,9 +56,21 @@ def create_dmof(
     structure : Structure
         The MOF to add functional groups to.
     mask : np.ndarray
-        _description_
+        Mask to select atoms to be replaced
     replacement_inds : np.ndarray
-        _description_
+        Indices to replace within the structure graph.
+    dopants: Molecule | List[Molecule]
+        Molecule(s) representing the functional groups to add. If a
+        single Molecule is provided, then that is used for all
+        replacements. If a List, it must have the same length as
+        replacement_inds.
+    max_attempts: int
+        A random rotation is applied to the dopant to avoid overlap with
+        existing sites at most max_attempts times. If there is still
+        overlap after that, the dopant is not placed and a warning is
+        logged.
+    rng: np.random.Generator, optional
+        Generator for random rotations.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -100,21 +113,37 @@ def create_dmof(
             dopant.rotate_sites(
                 theta=rng.uniform(0, 2 * np.pi), axis=direction, anchor=location
             )
-            try:
-                for site in dopant:
-                    structure_copy.append(
-                        species=site.species,
-                        coords=site.coords,
-                        coords_are_cartesian=True,
-                        validate_proximity=True,
-                        properties=site.properties,
-                    )
-                break
-            except ValueError as e:
-                # only catch the error if it is about proximity
-                if e.args[0] == "New site is too close to an existing site!":
-                    continue
-                raise e
+
+            # check for overlap with existing atoms
+            # get the fractional coordinates of the dopants.
+            d_frac = structure_copy.lattice.get_fractional_coords(
+                cart_coords=dopant.cart_coords
+            )
+            # calculate the distances between dopant and structure atoms
+            # along the lattice dimensions, taking periodic boundaries
+            # into account
+            frac_dists = np.abs(structure_copy.frac_coords[:, None] - d_frac)
+            frac_dists = np.where(frac_dists > 0.5, np.abs(1 - frac_dists), frac_dists)
+            # convert to cartesian distances
+            cart_dists = structure_copy.lattice.get_cartesian_coords(
+                fractional_coords=frac_dists
+            )
+            # calculate square of norm and compare to tolerance
+            if np.any(
+                np.sum(np.square(cart_dists), -1) < structure_copy.DISTANCE_TOLERANCE**2
+            ):
+                continue
+
+            # no overlap, add the dopant
+            for site in dopant:
+                structure_copy.append(
+                    species=site.species,
+                    coords=site.coords,
+                    coords_are_cartesian=True,
+                    validate_proximity=False,
+                    properties=site.properties,
+                )
+            break
         else:
             logger.warning(
                 "Could not add dopant %s to the structure at index %d",

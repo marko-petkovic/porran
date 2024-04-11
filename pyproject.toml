@@ -25,4 +25,4 @@ dependencies = [
 ]
 
 [project.urls]
-Home-page = "https://github.com/marko-petkovic/porran"
+home-page = "https://github.com/marko-petkovic/porran"

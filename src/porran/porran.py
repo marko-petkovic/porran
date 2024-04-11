@@ -18,7 +18,7 @@ from .mask_method import (
     mask_species,
     mask_zeo,
 )
-from .replacement_algorithms import chains, clusters, maximize_entropy, random
+from .replacement_algorithms import multi_clusters, chains, clusters, maximize_entropy, random, random_lowenstein
 from .utils import is_atom, write_cif
 
 
@@ -155,6 +155,7 @@ class PORRAN:
         write: bool = False, overwrite_ok = False,
         writepath: Optional[str] = "structures",
         verbose: bool = True,
+        print_error : bool = False,
         *args,
         **kwargs,
     ) -> List[Structure]:
@@ -166,7 +167,7 @@ class PORRAN:
         n_structures : int
             Number of structures to generate
         replace_algo : Union[str, Callable]
-            Algorithm to select nodes to replace. If str, it can be 'random', 'clusters', 'chains' or 'maximize_entropy'
+            Algorithm to select nodes to replace. If str, it can be 'random', 'random_lowenstein', 'clusters', 'multi_clusters','chains' or 'maximize_entropy'
         create_algo : Union[str, Callable]
             Algorithm to create the new structure. If str, it can be 'zeolite'
         n_subs : int
@@ -216,9 +217,12 @@ class PORRAN:
                 try:
                     sub_array = self._replace(n_subs, *args, **kwargs)
                     break
-                except:
+                except Exception as e:
                     sub_array = None
                     total_failed += 1
+                    if print_error:
+                        print(f"Failed to generate new structure: {e}")
+
 
             # if the maximum number of tries is reached, skip the structure
             if sub_array is None:
@@ -282,8 +286,12 @@ class PORRAN:
         if isinstance(replace_algo, str):
             if replace_algo == "random":
                 return random
+            elif replace_algo == "random_lowenstein":
+                return random_lowenstein
             elif replace_algo == "clusters":
                 return clusters
+            elif replace_algo == "multi_clusters":
+                return multi_clusters
             elif replace_algo == "chains":
                 return chains
             elif replace_algo == "maximize_entropy":

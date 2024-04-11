@@ -24,6 +24,39 @@ def random(G : nx.Graph, n_subs : int, *args, **kwargs):
     n_nodes = len(G.nodes)
     return np.random.choice(np.arange(n_nodes), n_subs, replace=False)
 
+
+def random_lowenstein(G : nx.Graph, n_subs : int, *args, **kwargs):
+    '''
+    Randomly select n_subs nodes from the graph while obeying the Lowenstein constraint
+    
+    Parameters
+    ----------
+    G : nx.Graph
+        Graph to select nodes from
+    n_subs : int
+        Number of nodes to select
+
+    Returns
+    -------
+    np.array
+        Array of selected nodes
+    '''
+    G = deepcopy(G)
+
+    selected_nodes = set()
+    for i in range(n_subs):
+
+        # Select a random node
+        node = np.random.choice(list(G.nodes))
+        selected_nodes.add(node)
+
+        # Remove the node and its neighbours from the graph
+        G.remove_nodes_from(list(G.neighbors(node)))
+        G.remove_node(node)
+
+    return np.array(list(selected_nodes))
+
+
 def clusters(G : nx.Graph, n_subs : int, node_idx : Optional[int] = None, *args, **kwargs):
     '''
     Selects n_subs nodes around a random node
@@ -148,7 +181,60 @@ def chains(G : nx.Graph, n_subs : int, chain_lengths : List[int], *args, **kwarg
         G.remove_nodes_from(neighbours)
     
     return np.array(al_subs)
+
+
+def multi_clusters(G : nx.Graph, n_subs : int, cluster_sizes : List[int], make_space : bool = False, *args, **kwargs):
+    '''
+    Selects nodes in multiple clusters of specified sizes
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Graph to select nodes from
+    n_subs : int
+        Number of nodes to select
+    cluster_sizes : List[int]
+        List of cluster sizes to select
+        Sum of cluster sizes should be equal to n_subs
+    make_space : bool, optional
+        If True, clusters cannot be connected, default is False    
+    
+    Returns
+    -------
+    np.array
+        Array of selected nodes
+    '''
         
+    G = deepcopy(G)
+
+    if n_subs != sum(cluster_sizes):
+        raise ValueError('Sum of cluster sizes should be equal to n_subs')
+    
+    al_subs = []
+
+    for cluster in cluster_sizes:
+        
+        new_al_subs = clusters(G, cluster, *args, **kwargs)
+        
+        if make_space:
+            to_be_removed = set()
+            # remove remaining neighbours of the selected nodes
+            for node in new_al_subs:
+                neighbours = set(G.neighbors(node))
+                to_be_removed = to_be_removed.union(neighbours)
+        
+            to_be_removed = to_be_removed.difference(new_al_subs)
+            G.remove_nodes_from(to_be_removed)
+
+        # remove selected nodes from the graph
+        G.remove_nodes_from(new_al_subs)
+
+        al_subs.extend(new_al_subs)
+
+    return np.array(al_subs)
+        
+
+
 def maximize_entropy(G : nx.Graph, n_subs : int, stochastic : bool = False, scaling : float = 1.0, *args, **kwargs):	
     '''
     Selects nodes to maximize the entropy of the selected nodes

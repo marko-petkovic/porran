@@ -4,6 +4,7 @@ import networkx as nx
 
 from typing import List, Optional
 from copy import deepcopy
+from itertools import combinations
 
 def random(G : nx.Graph, n_subs : int, *args, **kwargs):
     '''
@@ -23,6 +24,55 @@ def random(G : nx.Graph, n_subs : int, *args, **kwargs):
     '''	
     n_nodes = len(G.nodes)
     return np.random.choice(np.arange(n_nodes), n_subs, replace=False)
+
+
+def lowenstein(G : nx.Graph, n_subs : int, n_random : int = 1,*args, **kwargs):
+    '''
+    Generates all possible random configurations with n_subs Al atoms
+    Loops through configurations and selects the first one that satisfies the Lowenstein constraint
+    By setting n_random > 1, the function will keep looping until n_random valid configurations are found
+    From these, it will select a random one
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Graph to select nodes from
+    n_subs : int
+        Number of nodes to select
+    n_random : int, optional
+        Number of configurations obeying the Lowenstein constraint from which to sample, default is 1
+    
+    Returns
+    -------
+    np.array
+        Array of selected nodes
+    '''
+
+    G = deepcopy(G)
+    
+    # get adjacency matrix
+    adj_matrix = nx.to_numpy_array(G)
+
+    # get all posssible Al substitutions
+    combs = combinations(range(len(G.nodes)), n_subs)
+    
+    # shuffle the combinations
+    np.random.shuffle(combs)
+
+    al_subs = []
+
+    for comb in combs:
+        # check if the combination is valid
+        if np.sum(adj_matrix[comb, :][:, comb]) == 0:
+            al_subs.append(comb)
+            if len(al_subs) == n_random:
+                break
+    
+    if len(al_subs) > 0:
+        return np.array(al_subs[np.random.choice(len(al_subs))])
+    
+    raise ValueError('No valid combination found')
+
 
 
 def random_lowenstein(G : nx.Graph, n_subs : int, *args, **kwargs):

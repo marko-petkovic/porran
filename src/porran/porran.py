@@ -18,7 +18,15 @@ from .mask_method import (
     mask_species,
     mask_zeo,
 )
-from .replacement_algorithms import multi_clusters, chains, clusters, maximize_entropy, random, random_lowenstein
+from .replacement_algorithms import (
+    multi_clusters,
+    chains, 
+    clusters, 
+    maximize_entropy, 
+    random, 
+    random_lowenstein,
+    lowenstein,
+)
 from .utils import is_atom, write_cif
 
 
@@ -167,7 +175,7 @@ class PORRAN:
         n_structures : int
             Number of structures to generate
         replace_algo : Union[str, Callable]
-            Algorithm to select nodes to replace. If str, it can be 'random', 'random_lowenstein', 'clusters', 'multi_clusters','chains' or 'maximize_entropy'
+            Algorithm to select nodes to replace. If str, it can be 'random', 'random_lowenstein', 'lowenstein', 'clusters', 'multi_clusters','chains' or 'maximize_entropy'
         create_algo : Union[str, Callable]
             Algorithm to create the new structure. If str, it can be 'zeolite'
         n_subs : int
@@ -288,6 +296,8 @@ class PORRAN:
                 return random
             elif replace_algo == "random_lowenstein":
                 return random_lowenstein
+            elif replace_algo == "lowenstein":
+                return lowenstein
             elif replace_algo == "clusters":
                 return clusters
             elif replace_algo == "multi_clusters":

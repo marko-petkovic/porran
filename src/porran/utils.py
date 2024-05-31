@@ -34,6 +34,48 @@ def is_atom(element: str):
     return element in ATOMS
 
 
+def determine_crystal_system(a, b, c, alpha, beta, gamma, digits=3):
+
+    a = round(a, digits)
+    b = round(b, digits)
+    c = round(c, digits)
+
+    alpha = round(alpha, digits)
+    beta = round(beta, digits)
+    gamma = round(gamma, digits)
+
+    if a == b == c:
+
+        if alpha == beta == gamma == 90:
+            return 'cubic'
+
+        elif alpha == beta == gamma:
+            return 'trigonal'
+    
+    elif (a == b != c) or (a == c != b) or (b == c != a):
+
+        if alpha == beta == gamma == 90:
+            return 'tetragonal'
+
+        elif (alpha == beta == 90 and gamma == 120) or \
+             (alpha == gamma == 90 and beta == 120) or \
+             (beta == gamma == 90 and alpha == 120):
+            return 'hexagonal'
+    
+    elif a != b != c:
+
+        if alpha == beta == gamma == 90:
+            return 'orthorhombic'
+
+        elif (alpha == beta == 90 and gamma != 90) or \
+            (alpha == gamma == 90 and beta != 90) or \
+            (beta == gamma == 90 and alpha != 90):
+            return 'monoclinic'
+
+    
+    return 'triclinic'
+
+
 def write_cif(structure: Structure, filename: str, decimals: int = 3, *args, **kwargs):
     '''
     Write a structure to a CIF file
@@ -55,11 +97,12 @@ def write_cif(structure: Structure, filename: str, decimals: int = 3, *args, **k
 
     vol = structure.volume
 
-    sga = SpacegroupAnalyzer(structure, symprec=0.001)
-    try:
-        crystal_system = sga.get_crystal_system()
-    except:
-        crystal_system = 'triclinic'
+    crystal_system = determine_crystal_system(a, b, c, alpha, beta, gamma)
+    # sga = SpacegroupAnalyzer(structure, symprec=0.0001)
+    # try:
+    #     crystal_system = sga.get_crystal_system()
+    # except:
+    #     crystal_system = 'triclinic'
 
 
     

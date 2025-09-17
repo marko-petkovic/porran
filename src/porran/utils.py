@@ -107,7 +107,8 @@ def write_cif(structure: Structure, filename: str, decimals: int = 3, *args, **k
 
     
     with open(filename, 'w') as f:
-        
+        f.write("data_structure\n")
+        f.write("\n")
         f.write(f"_cell_length_a {a:.{decimals}f}\n")
         f.write(f"_cell_length_b {b:.{decimals}f}\n")
         f.write(f"_cell_length_c {c:.{decimals}f}\n")

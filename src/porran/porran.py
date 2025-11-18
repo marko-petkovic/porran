@@ -164,6 +164,7 @@ class PORRAN:
         writepath: Optional[str] = "structures",
         verbose: bool = True,
         print_error : bool = False,
+        struc_name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> List[Structure]:
@@ -191,6 +192,10 @@ class PORRAN:
             If writepath is not specified, a folder named 'structures' will be created in the current directory
         verbose : bool, optional
             Whether to provide information about the generation process, default is True
+        print_error : bool, optional
+            Whether to print errors when a structure cannot be generated, default is False
+        struc_name : str, optional
+            Custom name for the structure file. If not provided, the name will be the name of the replacement algorithm
 
         Returns
         -------
@@ -246,7 +251,7 @@ class PORRAN:
             if write:
                 for j in range(len(new_structure)):
                     self._write_structure(
-                        new_structure[j], writepath, i * len(new_structure) + j
+                        new_structure[j], writepath, i * len(new_structure) + j, struc_name,
                     )
 
         end = time()
@@ -323,7 +328,8 @@ class PORRAN:
             return create_algo
 
     def _write_structure(
-        self, structure: Structure, writepath: Optional[str] = None, i: int = 0
+        self, structure: Structure, writepath: Optional[str] = None, i: int = 0,
+        struc_name: Optional[str] = None
     ):
         """
         Write a structure to a file
@@ -344,12 +350,15 @@ class PORRAN:
         if writepath is None:
             writepath = "structures"
 
+        if struc_name is None:
+            struc_name = self.replace_algo.__name__
+
+
         write_cif(
             structure,
-            filename=f"{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif",
+            filename=f"{writepath}/{self.name}_{struc_name}_{i}.cif",
         )
-        # structure.to(filename=f'{writepath}/{self.name}_{self.replace_algo.__name__}_{i}.cif')
-
+        
     def _replace(self, n_subs: int, *args, **kwargs):
         """
         Replace n_subs nodes in the graph

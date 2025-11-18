@@ -137,6 +137,7 @@ def clusters(G : nx.Graph, n_subs : int, node_idx : Optional[int] = None, *args,
     if len(neighbours) > n_subs:
         # select n_subs random neighbours
         neighbours = np.random.choice(list(neighbours), n_subs, replace=False)
+        neighbours = np.concatenate(([node_idx], neighbours))
         return neighbours
 
     while len(neighbours) < n_subs:
@@ -162,7 +163,7 @@ def clusters(G : nx.Graph, n_subs : int, node_idx : Optional[int] = None, *args,
         else:
             neighbours = neighbours.union(added_neighbours)
     
-    return np.array(list(neighbours))
+    return np.array(list(neighbours)+[node_idx])
 
 
 

@@ -5,6 +5,55 @@ import numpy as np
 
 import warnings
 
+from .utils import extract_linkers
+
+
+
+def mof_graph(structure : Structure, radius : float, *args, **kwargs):
+    '''
+    Create a graph from a MOF structure
+    Edges in the graph are defined by bonds found using JmolNN
+
+    Parameters
+    ----------
+    structure : Structure
+        Structure object of the MOF
+
+    Returns
+    -------
+    nx.Graph
+        Graph of the MOF
+    '''
+
+    _, linkers_pos_frac = extract_linkers(structure)
+
+    lattice = structure.lattice
+
+    N = len(linkers_pos_frac)
+
+    # 2. Compute the PBC distance matrix (NxN)
+    dist_matrix = lattice.get_all_distances(
+        linkers_pos_frac, linkers_pos_frac
+    )
+
+    # 3. Build adjacency mask (exclude self-edges)
+    mask = (dist_matrix <= radius) & (dist_matrix > 1e-12)
+
+    # 4. Build networkx graph
+    G = nx.Graph()
+    G.add_nodes_from(range(N))
+
+    # Add edges (only i < j to avoid duplicates)
+    rows, cols = np.where(mask)
+    for i, j in zip(rows, cols):
+        if i < j:
+            G.add_edge(i, j)
+
+    # 5. Optional sanity check
+    check_graph(G)
+
+    return G
+
 
 def zeo_graph(structure : Structure, *args, **kwargs):
     '''

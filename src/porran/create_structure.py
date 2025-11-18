@@ -6,9 +6,13 @@ from pymatgen.core import Molecule, Structure
 from scipy import spatial
 
 from .transformations import rotation_axis_angle
+from .utils import extract_linkers
 
 logger = logging.getLogger(__name__)
 
+BOND_LEN_MO = 1.8
+BOND_LEN_OH = 0.96
+HOH_ANGLE = 104.5
 
 def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
     """
@@ -36,6 +40,134 @@ def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
     structure_copy = structure.copy()
     structure_copy[inds] = "Al"
 
+    return [structure_copy]
+
+# TODO: Generalize capping functions for different metals and cap groups
+def cap_with_OH(structure: Structure, ox_ind: int, dists: np.array):
+    # find the nearest Al atom to the oxygen
+    ox_site = structure[ox_ind]
+    # mask Al atoms in dists (distance matrix)
+    al_inds = [i for i, site in enumerate(structure) if site.species_string == "Al"]
+  
+    al_dists = dists[ox_ind][al_inds]
+
+    nearest_al_ind = al_inds[np.argmin(al_dists)]
+    al_site = structure[nearest_al_ind]
+    lattice = structure.lattice
+    frac_O = lattice.get_fractional_coords(ox_site.coords)
+    frac_Al = lattice.get_fractional_coords(al_site.coords)
+    dfrac = frac_O - frac_Al
+    dfrac -= np.round(dfrac)      # wrap to [-0.5, 0.5] along each axis
+    vec_OA = lattice.get_cartesian_coords(dfrac)
+    vec_OA /= np.linalg.norm(vec_OA)
+    h_coords = ox_site.coords + BOND_LEN_OH * vec_OA
+
+    return h_coords
+
+def cap_with_H2O(structure: Structure, ox_ind: int, dists: np.array):
+    # find the nearest Al atom to the oxygen
+    ox_site = structure[ox_ind]
+    # mask Al atoms in dists (distance matrix)
+    al_inds = [i for i, site in enumerate(structure) if site.species_string == "Al"]
+
+    al_dists = dists[ox_ind][al_inds]
+
+    nearest_al_ind = al_inds[np.argmin(al_dists)]
+    al_site = structure[nearest_al_ind]
+    lattice = structure.lattice
+    frac_O = lattice.get_fractional_coords(ox_site.coords)
+    frac_Al = lattice.get_fractional_coords(al_site.coords)
+    dfrac = frac_O - frac_Al
+    dfrac -= np.round(dfrac)      # wrap to [-0.5, 0.5] along each axis
+    vec_OA = lattice.get_cartesian_coords(dfrac)
+    vec_OA /= np.linalg.norm(vec_OA)
+    
+    if abs(vec_OA[0]) < 0.9:
+        perp = np.array([1.0, 0.0, 0.0])
+    else:
+        perp = np.array([0.0, 1.0, 0.0])
+    # Make it perpendicular
+    v_perp = perp - np.dot(perp, vec_OA) * vec_OA
+    v_perp /= np.linalg.norm(v_perp)
+
+    # Rotate perpendicular vector to set HOH angle
+    angle_rad = np.radians(HOH_ANGLE / 2)
+    h1_coords = ox_site.coords + BOND_LEN_OH * (
+        np.cos(angle_rad) * vec_OA + np.sin(angle_rad) * v_perp
+    )
+    h2_coords = ox_site.coords + BOND_LEN_OH * (
+        np.cos(angle_rad) * vec_OA - np.sin(angle_rad) * v_perp
+    )
+
+    return h1_coords, h2_coords
+
+
+
+def create_defect_mof(
+    structure: Structure,
+    mask: np.ndarray,
+    replacement_inds: np.ndarray,
+    cap_group: List[str] = ["OH","H2O"], # currently useless
+    *args,
+    **kwargs,
+):
+    """Create a MOF with missing linkers and capped metallic centers.
+    Parameters
+    ----------
+    structure : Structure
+        The MOF to create defects in.
+    mask : np.ndarray
+        Mask to select atoms to be replaced
+    replacement_inds : np.ndarray
+        Indices of linkers to remove within the structure graph.
+    cap_group : List[str]
+        The groups to use for capping metallic centers.
+    """
+
+    dist_maxtrix_struct = structure.distance_matrix
+    
+    replacement_inds = np.where(replacement_inds)[0].tolist()
+
+    linkers, _ = extract_linkers(structure)
+    atoms_to_remove = [atom for linker_inds in replacement_inds for atom in linkers[linker_inds]]
+    new_sites = []
+    for i, site in enumerate(structure.sites):
+        if i not in atoms_to_remove:
+            new_sites.append(site)
+
+    structure_copy = Structure(structure.lattice, [site.specie for site in new_sites],
+                               [site.frac_coords for site in new_sites], coords_are_cartesian=False)
+    
+    # TODO: The code below works only for CAU-10. It should be generalized.
+    # loop throug all removed linkers, and identify their Oxygen atoms
+
+    for linker_inds in replacement_inds:
+        linker = linkers[linker_inds]
+        o_inds = [ind for ind in linker if structure[ind].species_string == "O"]
+
+        # find the two oxygens that are furthest apart
+        # these two oxygens will be capped with H20, the rest with OH
+
+        coords = structure.frac_coords[o_inds]
+        dist_maxtrix = structure.lattice.get_all_distances(coords, coords)
+        i, j = np.unravel_index(np.argmax(dist_maxtrix), dist_maxtrix.shape)
+        k, l = set(range(len(o_inds))) - {i, j} # get the other indices
+
+        # add oxygens in the structure copy
+        for o_ind in o_inds:
+            structure_copy.append(species="O", coords=structure[o_ind].coords, coords_are_cartesian=True)
+
+        # cap oxygens (h2o)
+        h2o_h1, h2o_h2 = cap_with_H2O(structure, o_inds[i], dist_maxtrix_struct)
+        h2o_h3, h2o_h4 = cap_with_H2O(structure, o_inds[j], dist_maxtrix_struct)
+
+        # cap oxygens (oh)
+        oh_h1 = cap_with_OH(structure, o_inds[k], dist_maxtrix_struct)
+        oh_h2 = cap_with_OH(structure, o_inds[l], dist_maxtrix_struct)
+
+        for h_coord in [oh_h1, oh_h2, h2o_h1, h2o_h2, h2o_h3, h2o_h4]:
+            structure_copy.append(species="H", coords=h_coord, coords_are_cartesian=True)
+    
     return [structure_copy]
 
 

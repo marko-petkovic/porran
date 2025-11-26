@@ -149,8 +149,13 @@ def create_defect_mof(
         # these two oxygens will be capped with H20, the rest with OH
 
         coords = structure.frac_coords[o_inds]
-        dist_maxtrix = structure.lattice.get_all_distances(coords, coords)
-        i, j = np.unravel_index(np.argmax(dist_maxtrix), dist_maxtrix.shape)
+        dist_matrix = structure.lattice.get_all_distances(coords, coords)
+        flat_idx_sorted = np.argsort(dist_matrix, axis=None)[::-1]
+
+        # directly take the SECOND largest index (list is symmetric, so second largest is at index 2/3)
+        max2_idx = flat_idx_sorted[2]
+
+        i, j = np.unravel_index(max2_idx, dist_matrix.shape)
         k, l = set(range(len(o_inds))) - {i, j} # get the other indices
 
         # add oxygens in the structure copy

@@ -69,9 +69,14 @@ def download_mof_nodes_linkers(cif_path, download_path="downloads", debug=False)
         download_button.click()
         linkers_file = wait_for_file(download_dir / "linkers.cif")
 
+        # Download mof_asr.cif
+        select_download.select_by_visible_text("mof_asr.cif")
+        download_button.click()
+        mof_asr_file = wait_for_file(download_dir / "mof_asr.cif")
+        
     finally:
         driver.quit()
 
-    return nodes_file, linkers_file
+    return nodes_file, linkers_file, mof_asr_file
 
 

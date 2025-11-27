@@ -1,3 +1,4 @@
+import os
 from pymatgen.core import Structure
 
 import networkx as nx
@@ -8,10 +9,11 @@ from typing import List, Optional, Dict
 import warnings
 
 from .utils import extract_linkers
+from .mof_linkers_nodes import download_mof_nodes_linkers
 
 
 
-def mof_graph(structure : Structure, radius : float, *args, **kwargs):
+def mof_graph(structure : Structure, radius : float, download_path: str, cif_path: str, *args, **kwargs):
     '''
     Create a graph from a MOF structure
     Edges in the graph are defined by bonds found using JmolNN
@@ -26,8 +28,18 @@ def mof_graph(structure : Structure, radius : float, *args, **kwargs):
     nx.Graph
         Graph of the MOF
     '''
+    # delete any linkers.cif, mof_asr.cif, nodes.cif in download_path
+    
+    for filename in ["linkers.cif", "mof_asr.cif", "nodes.cif"]:
+        file_path = os.path.join(download_path, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
-    _, linkers_pos_frac = extract_linkers(structure)
+    # HERE: download files from mofid
+    _ = download_mof_nodes_linkers(cif_path, download_path)
+
+
+    _, linkers_pos_frac = extract_linkers(download_path)
 
     lattice = structure.lattice
 

@@ -7,9 +7,9 @@ from numpy import ndarray
 from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 
-from .create_structure import create_dmof, create_zeo
+from .create_structure import create_dmof, create_zeo, create_defect_mof
 from .get_zeolite import get_zeolite
-from .graph_creation import radius_graph, zeo_graph
+from .graph_creation import radius_graph, zeo_graph, mof_graph
 from .mask_method import (
     mask_all,
     mask_array,
@@ -39,14 +39,16 @@ class PORRAN:
         graph_method: Optional[Union[str, Callable]] = None,
         mask_method: Optional[Union[List[str], ndarray, str]] = None,
         seed: Optional[int] = None,
+        download_path: Optional[str] = "downloads",
         *args,
         **kwargs,
     ):
         
         self.cif_path = None
+        self.download_path = download_path
 
         if cif_path is not None:
-            self.init_structure(cif_path, graph_method, mask_method, *args, **kwargs)
+            self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
         if seed is not None:
             self.set_seed(seed)
 
@@ -56,6 +58,7 @@ class PORRAN:
         graph_method: Optional[Union[str, Callable]],
         mask_method: Optional[Union[List[str], ndarray, str]] = None,
         check_cif: bool = False, site_tolerance: float = 1e-3,
+        download_path: Optional[str] = "downloads",
         *args,
         **kwargs,
     ):
@@ -76,6 +79,8 @@ class PORRAN:
             Check the cif file for errors, default is False
         site_tolerance : float, optional
             Tolerance for site matching, default is 1e-3
+        download_path: Optional[str] = "downloads"
+            Path to download MOF nodes and linkers files
     
         Returns
         -------
@@ -83,11 +88,12 @@ class PORRAN:
         """
         # name is the name of the cif file
         self.name = cif_path.split("/")[-1].split(".")[0]
+        self.download_path = download_path
         self.structure = self._read_structure(cif_path, check_cif)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
         self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
-        self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask, download_path=download_path, cif_path=cif_path, *args, **kwargs) # type: ignore
 
     def from_IZA_code(
         self,
@@ -252,7 +258,7 @@ class PORRAN:
                 continue
 
             new_structure = self.create_algo(
-                self.structure, self.mask, sub_array, modify_O_connected_to_Al=modify_O_connected_to_Al, modify_O_connected_to_Al_Al=modify_O_connected_to_Al_Al, *args, **kwargs
+                self.structure, self.mask, sub_array, modify_O_connected_to_Al=modify_O_connected_to_Al, modify_O_connected_to_Al_Al=modify_O_connected_to_Al_Al, download_path=self.download_path, *args, **kwargs
             )
             if self.post_algo is not None:
                 new_structure = self.post_algo(new_structure, *args, **kwargs)
@@ -331,6 +337,8 @@ class PORRAN:
                 return create_zeo
             if create_algo == "dmof":
                 return create_dmof
+            if create_algo == "defect_mof":
+                return create_defect_mof
             else:
                 raise ValueError(f"Unknown create algorithm: {create_algo}")
         else:
@@ -400,6 +408,8 @@ class PORRAN:
                 return zeo_graph
             elif graph_method == "radius":
                 return radius_graph
+            elif graph_method == "mof":
+                return mof_graph
             else:
                 raise ValueError(f"Unknown graph method: {graph_method}")
         else:

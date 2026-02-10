@@ -46,8 +46,10 @@ class PORRAN:
         
         self.cif_path = None
         self.download_path = download_path
+        self.download_path = download_path
 
         if cif_path is not None:
+            self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
             self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
         if seed is not None:
             self.set_seed(seed)
@@ -58,6 +60,7 @@ class PORRAN:
         graph_method: Optional[Union[str, Callable]],
         mask_method: Optional[Union[List[str], ndarray, str]] = None,
         check_cif: bool = False, site_tolerance: float = 1e-3,
+        download_path: Optional[str] = "downloads",
         download_path: Optional[str] = "downloads",
         *args,
         **kwargs,

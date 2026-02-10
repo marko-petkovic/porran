@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 
+
 def create_zeo(structure: Structure, mask, replacement_inds, modify_O_connected_to_Al: bool = False, modify_O_connected_to_Al_Al: bool = False, *args, **kwargs):
     """
     Creates a structure with Si atoms replaced by Al atoms

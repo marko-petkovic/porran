@@ -209,6 +209,8 @@ class PORRAN:
         List[Structure]
             List of generated structures
         """
+        if not modify_O_connected_to_Al:
+            modify_O_connected_to_Al_Al = False
 
         if write:
             if not os.path.exists(writepath): # type: ignore
@@ -250,7 +252,7 @@ class PORRAN:
                 continue
 
             new_structure = self.create_algo(
-                self.structure, self.mask, sub_array, *args, **kwargs
+                self.structure, self.mask, sub_array, modify_O_connected_to_Al=modify_O_connected_to_Al, modify_O_connected_to_Al_Al=modify_O_connected_to_Al_Al, *args, **kwargs
             )
             if self.post_algo is not None:
                 new_structure = self.post_algo(new_structure, *args, **kwargs)

@@ -77,7 +77,7 @@ def determine_crystal_system(a, b, c, alpha, beta, gamma, digits=3):
     return 'triclinic'
 
 
-def write_cif(structure: Structure, filename: str, decimals: int = 3, custom_charges: Optional[Dict[str, float]] = None, *args, **kwargs):
+def write_cif(structure: Structure, filename: str, decimals: int = 4, custom_charges: Optional[Dict[str, float]] = None, *args, **kwargs):
     '''
     Write a structure to a CIF file
 
@@ -134,9 +134,20 @@ def write_cif(structure: Structure, filename: str, decimals: int = 3, custom_cha
 
         for site in structure:
             
-            if custom_charges is not None and site.species_string in custom_charges:
-                charge = custom_charges[site.species_string]
+        
+
+            if "Label: " in site.label:
+                atom_label = site.label
+                # remove "Label: " from the label
+                atom_label = atom_label.replace("Label: ", "")
+            else:
+                atom_label = site.species_string
+
+
+            if custom_charges is not None and atom_label in custom_charges:
+                charge = custom_charges[atom_label]
             else:
                 charge = 0.0
-            f.write(f"{site.species_string} {site.species_string} {site.frac_coords[0]:.{decimals}f} {site.frac_coords[1]:.{decimals}f} {site.frac_coords[2]:.{decimals}f} {charge:.{decimals}f}\n")
+
+            f.write(f"{atom_label}\t{site.species_string}\t{site.frac_coords[0]:.{decimals}f}\t{site.frac_coords[1]:.{decimals}f}\t{site.frac_coords[2]:.{decimals}f}\t{charge:.{decimals}f}\n")
 

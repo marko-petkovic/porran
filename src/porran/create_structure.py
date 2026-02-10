@@ -10,7 +10,7 @@ from .transformations import rotation_axis_angle
 logger = logging.getLogger(__name__)
 
 
-def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
+def create_zeo(structure: Structure, mask, replacement_inds, modify_O_connected_to_Al: bool = False, modify_O_connected_to_Al_Al: bool = False, *args, **kwargs):
     """
     Creates a structure with Si atoms replaced by Al atoms
 
@@ -22,6 +22,10 @@ def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
         Mask to select atoms to be replaced
     replacement_inds : np.array
         Indices of Si atoms to replace with Al atoms
+    modify_O_connected_to_Al : bool
+        Whether to modify O atoms connected to Al atoms
+    modify_O_connected_to_Al_Al : bool
+        Whether to modify O atoms connected to Al atoms that are connected to Al atoms
 
     Returns
     -------
@@ -35,6 +39,31 @@ def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
 
     structure_copy = structure.copy()
     structure_copy[inds] = "Al" # type: ignore
+
+    if modify_O_connected_to_Al:
+        o_inds = np.where(np.array([site.species_string == "O" for site in structure_copy]))[0]
+        dist_matrix = structure_copy.distance_matrix
+        # set diagonal to inf to ignore self-distance
+        np.fill_diagonal(dist_matrix, np.inf)
+
+        # calculate closest 2 neighbours for each O atom
+        closest_inds = np.argsort(dist_matrix[o_inds], axis=1)[:, :2]
+
+        for i, o_ind in enumerate(o_inds):
+            o_ind = int(o_ind)
+            neighbours = closest_inds[i]
+            
+            if modify_O_connected_to_Al:
+                if any(structure_copy[neighbour].species_string == "Al" for neighbour in neighbours): # type: ignore
+                    structure_copy[o_ind].label = "Label: Oa" # type: ignore
+            
+            
+            if modify_O_connected_to_Al_Al:
+                if all(structure_copy[neighbour].species_string == "Al" for neighbour in neighbours): # type: ignore
+                    structure_copy[o_ind].label = "Label: Oaa" # type: ignore
+            
+           
+        
 
     return [structure_copy]
 

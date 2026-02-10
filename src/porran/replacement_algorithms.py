@@ -57,7 +57,7 @@ def lowenstein(G : nx.Graph, n_subs : int, n_random : int = 1,*args, **kwargs):
     combs = combinations(range(len(G.nodes)), n_subs)
     
     # shuffle the combinations
-    np.random.shuffle(combs)
+    np.random.shuffle(combs) # type: ignore
 
     al_subs = []
 
@@ -137,7 +137,7 @@ def clusters(G : nx.Graph, n_subs : int, node_idx : Optional[int] = None, *args,
     if len(neighbours) > n_subs:
         # select n_subs random neighbours
         neighbours = np.random.choice(list(neighbours), n_subs, replace=False)
-        neighbours = np.concatenate(([node_idx], neighbours))
+        neighbours = np.concatenate(([node_idx], neighbours)) # type: ignore
         return neighbours
 
     while len(neighbours) < n_subs:

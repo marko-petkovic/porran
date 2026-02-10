@@ -2,6 +2,8 @@ from pymatgen.core import Structure
 
 import networkx as nx
 import numpy as np
+from numpy import ndarray
+from typing import List, Optional, Dict
 
 import warnings
 
@@ -52,7 +54,7 @@ def zeo_graph(structure : Structure, *args, **kwargs):
     return G
 
 
-def radius_graph(structure : Structure, radius : float, mask : np.array = None, *args, **kwargs):
+def radius_graph(structure : Structure, radius : float, mask : Optional[ndarray] = None, *args, **kwargs):
     '''
     Create a graph from a structure
     Edges in the graph are defined by atoms within a certain radius of each other
@@ -64,7 +66,7 @@ def radius_graph(structure : Structure, radius : float, mask : np.array = None, 
         Structure object of the all silica zeolite
     radius : float
         Radius to define edges
-    mask : np.array, optional
+    mask : Optional[ndarray], optional
         Array of bools to select atoms in the graph
 
     Returns

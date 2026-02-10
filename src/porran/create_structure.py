@@ -34,7 +34,7 @@ def create_zeo(structure: Structure, mask, replacement_inds, *args, **kwargs):
     inds = inds[replacement_inds]
 
     structure_copy = structure.copy()
-    structure_copy[inds] = "Al"
+    structure_copy[inds] = "Al" # type: ignore
 
     return [structure_copy]
 

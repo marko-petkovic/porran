@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
@@ -76,7 +77,7 @@ def determine_crystal_system(a, b, c, alpha, beta, gamma, digits=3):
     return 'triclinic'
 
 
-def write_cif(structure: Structure, filename: str, decimals: int = 3, *args, **kwargs):
+def write_cif(structure: Structure, filename: str, decimals: int = 3, custom_charges: Optional[Dict[str, float]] = None, *args, **kwargs):
     '''
     Write a structure to a CIF file
 
@@ -132,10 +133,10 @@ def write_cif(structure: Structure, filename: str, decimals: int = 3, *args, **k
         f.write("_atom_site_charge\n")
 
         for site in structure:
-            # for zeolites:
-            if site.species_string == 'Si':
-                f.write(f"{site.species_string} {site.species_string} {site.frac_coords[0]:.{decimals}f} {site.frac_coords[1]:.{decimals}f} {site.frac_coords[2]:.{decimals}f} -0.393\n")
-
+            
+            if custom_charges is not None and site.species_string in custom_charges:
+                charge = custom_charges[site.species_string]
             else:
-                f.write(f"{site.species_string} {site.species_string} {site.frac_coords[0]:.{decimals}f} {site.frac_coords[1]:.{decimals}f} {site.frac_coords[2]:.{decimals}f} 0.000\n")
+                charge = 0.0
+            f.write(f"{site.species_string} {site.species_string} {site.frac_coords[0]:.{decimals}f} {site.frac_coords[1]:.{decimals}f} {site.frac_coords[2]:.{decimals}f} {charge:.{decimals}f}\n")
 

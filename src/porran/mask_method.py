@@ -1,6 +1,7 @@
 from typing import Callable, List
 
 import numpy as np
+from numpy import ndarray
 from pymatgen.core import Structure
 
 
@@ -57,7 +58,7 @@ def mask_all(structure: Structure, *args, **kwargs):
     return np.ones(len(structure), dtype=bool)
 
 
-def mask_array(structure: Structure, mask: np.array, *args, **kwargs):
+def mask_array(structure: Structure, mask: ndarray, *args, **kwargs):
     """
     Calculate a mask to select atoms in a structure based on a mask array
 
@@ -65,12 +66,12 @@ def mask_array(structure: Structure, mask: np.array, *args, **kwargs):
     ----------
     structure : Structure
         Structure object of the all silica zeolite
-    mask : np.array
+    mask : ndarray
         Mask array
 
     Returns
     -------
-    np.array
+    ndarray
         Mask to select atoms in the structure based on the mask array
     """
     if len(mask) != len(structure):
@@ -78,7 +79,7 @@ def mask_array(structure: Structure, mask: np.array, *args, **kwargs):
     return mask.astype(bool)
 
 
-def mask_box(structure: Structure, box: np.array, *args, **kwargs):
+def mask_box(structure: Structure, box: ndarray, *args, **kwargs):
     """
     Calculate a mask to select atoms in a structure based on a box
 
@@ -86,7 +87,7 @@ def mask_box(structure: Structure, box: np.array, *args, **kwargs):
     ----------
     structure : Structure
         Structure object of the all silica zeolite
-    box : np.array
+    box : ndarray
         Box to select atoms (fractional coordinates)
         Shape: (3,2)
 

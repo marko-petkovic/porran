@@ -3,6 +3,7 @@ from time import time
 from typing import Callable, List, Optional, Union
 
 import numpy as np
+from numpy import ndarray
 from pymatgen.core import Structure
 from pymatgen.io.cif import CifParser
 
@@ -36,11 +37,13 @@ class PORRAN:
         self,
         cif_path: Optional[str] = None,
         graph_method: Optional[Union[str, Callable]] = None,
-        mask_method: Optional[Union[List[str], np.array, str]] = None,
+        mask_method: Optional[Union[List[str], ndarray, str]] = None,
         seed: Optional[int] = None,
         *args,
         **kwargs,
     ):
+        
+        self.cif_path = None
 
         if cif_path is not None:
             self.init_structure(cif_path, graph_method, mask_method, *args, **kwargs)
@@ -50,8 +53,8 @@ class PORRAN:
     def init_structure(
         self,
         cif_path: str,
-        graph_method: Union[str, Callable],
-        mask_method: Optional[Union[List[str], np.array, str]] = None,
+        graph_method: Optional[Union[str, Callable]],
+        mask_method: Optional[Union[List[str], ndarray, str]] = None,
         check_cif: bool = False, site_tolerance: float = 1e-3,
         *args,
         **kwargs,
@@ -63,9 +66,9 @@ class PORRAN:
         ----------
         cif_path : str
             Path to the cif file
-        graph_method : Union[str, Callable]
+        graph_method : Optional[Union[str, Callable]]
             Method to build the graph. If str, it can be 'zeolite' or 'radius'
-        mask_method : Optional[Union[List[str], np.array]]
+        mask_method : Optional[Union[List[str], ndarray, str]]
             Method to select atoms to include in the graph.
             To directly select atoms, its possible to provide an np.array with the indices of the atoms to include set to 1
             To select atoms by species, provide a list of species to include
@@ -83,16 +86,14 @@ class PORRAN:
         self.structure = self._read_structure(cif_path, check_cif)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
-        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
-        self.structure_graph = self.graph_method(
-            self.structure, mask=self.mask, *args, **kwargs
-        )
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
 
     def from_IZA_code(
         self,
         zeolite_code: str,
-        graph_method: Union[str, Callable],
-        mask_method: Optional[Union[List[str], np.array, str]] = None,
+        graph_method: Optional[Union[str, Callable]] = None,
+        mask_method: Optional[Union[List[str], ndarray, str]] = None,
         *args,
         **kwargs,
     ):
@@ -103,9 +104,9 @@ class PORRAN:
         ----------
         zeolite_code : str
             IZA code of the zeolite
-        graph_method : Union[str, Callable]
+        graph_method : Optional[Union[str, Callable]] = None,
             Method to build the graph. If str, it can be 'zeolite' or 'radius'
-        mask_method : Optional[Union[List[str], np.array]]
+        mask_method : Optional[Union[List[str], ndarray, str]] = None,
             Method to select atoms to include in the graph.
             To directly select atoms, its possible to provide an np.array with the indices of the atoms to include set to 1
             To select atoms by species, provide a list of species to include
@@ -118,15 +119,13 @@ class PORRAN:
         self.structure = get_zeolite(zeolite_code)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
-        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
-        self.structure_graph = self.graph_method(
-            self.structure, mask=self.mask, *args, **kwargs
-        )
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
 
     def change_graph_method(
         self,
-        graph_method: Union[str, Callable],
-        mask_method: Optional[Union[List[str], np.array, str]] = None,
+        graph_method: Optional[Union[str, Callable]] = None,
+        mask_method: Optional[Union[List[str], ndarray, str]] = None,
         *args,
         **kwargs,
     ):
@@ -135,9 +134,9 @@ class PORRAN:
 
         Parameters
         ----------
-        graph_method : Union[str, Callable]
+        graph_method : Optional[Union[str, Callable]] = None,
             Method to build the graph. If str, it can be 'zeolite' or 'radius'
-        mask_method : Optional[Union[List[str], np.array]]
+        mask_method : Optional[Union[List[str], ndarray, str]]
             Method to select atoms to include in the graph.
             To directly select atoms, its possible to provide an np.array with the indices of the atoms to include set to 1
             To select atoms by species, provide a list of species to include
@@ -147,10 +146,8 @@ class PORRAN:
         """
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
-        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs)
-        self.structure_graph = self.graph_method(
-            self.structure, mask=self.mask, *args, **kwargs
-        )
+        self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
+        self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
 
     def generate_structures(
         self,
@@ -204,8 +201,8 @@ class PORRAN:
         """
 
         if write:
-            if not os.path.exists(writepath):
-                os.makedirs(writepath)
+            if not os.path.exists(writepath): # type: ignore
+                os.makedirs(writepath) # type: ignore
             elif not os.listdir(writepath):
                 pass
             elif not overwrite_ok:
@@ -263,7 +260,7 @@ class PORRAN:
             print(f"Failed to generate new structures {total_failed} times")
         return structures
 
-    def _get_mask_method(self, mask_method: Optional[Union[List[str], np.array, str]]):
+    def _get_mask_method(self, mask_method: Optional[Union[List[str], ndarray, str]]):
         if mask_method is None:
             return mask_all
         elif isinstance(mask_method, str):
@@ -376,7 +373,7 @@ class PORRAN:
         sub_array = self.replace_algo(self.structure_graph, n_subs, *args, **kwargs)
         return sub_array
 
-    def _get_graph_method(self, graph_method: Union[str, Callable]):
+    def _get_graph_method(self, graph_method: Optional[Union[str, Callable]] = None):
         if isinstance(graph_method, str):
             if graph_method == "zeolite":
                 return zeo_graph

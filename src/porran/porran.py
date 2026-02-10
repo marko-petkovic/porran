@@ -1,6 +1,6 @@
 import os
 from time import time
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 from numpy import ndarray
@@ -162,6 +162,9 @@ class PORRAN:
         verbose: bool = True,
         print_error : bool = False,
         struc_name: Optional[str] = None,
+        custom_charges: Optional[Dict[str, float]] = None,
+        modify_O_connected_to_Al: bool = False,
+        modify_O_connected_to_Al_Al: bool = False,
         *args,
         **kwargs,
     ) -> List[Structure]:
@@ -193,6 +196,13 @@ class PORRAN:
             Whether to print errors when a structure cannot be generated, default is False
         struc_name : str, optional
             Custom name for the structure file. If not provided, the name will be the name of the replacement algorithm
+        custom_charges : Dict[str, float], optional
+            Custom charges for the atoms in the structure. The keys should be the species strings and the values should be the charges. If not provided, all charges will be set to 0.
+        modify_O_connected_to_Al : bool, optional
+            Whether to modify the O atoms connected to Al atoms in the structure (O -> Oa), default is False
+        modify_O_connected_to_Al_Al : bool, optional
+            Whether to modify the O atoms connected to Al atoms in the structure (O -> Oaa), default is False
+            If modify_O_connected_to_Al is False, this parameter will be ignored
 
         Returns
         -------
@@ -248,7 +258,7 @@ class PORRAN:
             if write:
                 for j in range(len(new_structure)):
                     self._write_structure(
-                        new_structure[j], writepath, i * len(new_structure) + j, struc_name,
+                        new_structure[j], writepath, i * len(new_structure) + j, struc_name, custom_charges, *args, **kwargs
                     )
 
         end = time()
@@ -325,8 +335,12 @@ class PORRAN:
             return create_algo
 
     def _write_structure(
-        self, structure: Structure, writepath: Optional[str] = None, i: int = 0,
-        struc_name: Optional[str] = None
+        self, structure: Structure, 
+        writepath: Optional[str] = None, 
+        i: int = 0,
+        struc_name: Optional[str] = None,
+        custom_charges: Optional[Dict[str, float]] = None,
+         *args, **kwargs
     ):
         """
         Write a structure to a file
@@ -339,6 +353,10 @@ class PORRAN:
             Path to write the structure to, default is None
         i : int
             Index of the structure, default is 0
+        struc_name : str, optional
+            Custom name for the structure file. If not provided, the name will be the name of the replacement algorithm
+        custom_charges : Dict[str, float], optional
+            Custom charges for the atoms in the structure. The keys should be the species strings and the values should be the charges. If not provided, all charges will be set to 0.
 
         Returns
         -------
@@ -354,6 +372,7 @@ class PORRAN:
         write_cif(
             structure,
             filename=f"{writepath}/{self.name}_{struc_name}_{i}.cif",
+            custom_charges=custom_charges,
         )
         
     def _replace(self, n_subs: int, *args, **kwargs):

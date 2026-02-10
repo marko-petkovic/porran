@@ -158,53 +158,6 @@ def extract_linkers(download_path: str):
 
     return linkers, linkers_pos
 
-    # jmol = JmolNN()
-    # struct_graph = StructureGraph.from_local_env_strategy(structure, jmol)
-
-    # # G = struct_graph.graph.copy()
-    # visited = set()
-    # linkers = []
-    # linkers_pos = []
-
-    # def find_linker_group(atom_index):
-    #     linker_group = set()
-    #     atoms_to_visit = [atom_index]
-        
-    #     while atoms_to_visit:
-    #         current_atom = atoms_to_visit.pop()
-    #         if current_atom in visited:
-    #             continue
-            
-    #         visited.add(current_atom)
-    #         linker_group.add(current_atom)
-            
-    #         for neighbor in struct_graph.get_connected_sites(current_atom):
-    #             neighbor_index = neighbor.index
-    #             neighbor_element = structure[neighbor_index].species_string
-                
-    #             # TODO: generalize metal check + linker elements
-    #             if neighbor_index not in visited and neighbor_element not in {"Al"}:
-    #                 if neighbor_element in {"C", "O", "N", "H"}:
-    #                     atoms_to_visit.append(neighbor_index)
-                
-    #     if any(element == "C" for element in [structure[index].species_string for index in linker_group]):
-    #         return linker_group
-    #     else:
-    #         return None
-        
-    # for i, site in enumerate(structure):
-    #     if not site.specie.is_metal and i not in visited:
-    #         linker = find_linker_group(i)
-    #         if linker:
-    #             # calculate positions of linker atoms
-    #             linker_pos = [structure[index].frac_coords for index in linker]
-    #             # calculate center of mass of linker (fractional coordinates, pbc considered)
-    #             linkers_pos.append(mean_frac_pbc(np.array(linker_pos)))
-
-
-    #             linkers.append(linker)
-
-    # return linkers, linkers_pos
 
 
 def readcif(name):

@@ -46,7 +46,6 @@ class PORRAN:
         
         self.cif_path = None
         self.download_path = download_path
-        self.download_path = download_path
 
         if cif_path is not None:
             self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
@@ -60,7 +59,6 @@ class PORRAN:
         graph_method: Optional[Union[str, Callable]],
         mask_method: Optional[Union[List[str], ndarray, str]] = None,
         check_cif: bool = False, site_tolerance: float = 1e-3,
-        download_path: Optional[str] = "downloads",
         download_path: Optional[str] = "downloads",
         *args,
         **kwargs,
@@ -261,7 +259,7 @@ class PORRAN:
                 continue
 
             new_structure = self.create_algo(
-                self.structure, self.mask, sub_array, modify_O_connected_to_Al=modify_O_connected_to_Al, modify_O_connected_to_Al_Al=modify_O_connected_to_Al_Al, download_path=self.download_path, *args, **kwargs
+                self.structure, self.mask, sub_array, modify_O_connected_to_Al=modify_O_connected_to_Al, modify_O_connected_to_Al_Al=modify_O_connected_to_Al_Al, download_path=self.download_path, *args, **kwargs # type: ignore
             )
             if self.post_algo is not None:
                 new_structure = self.post_algo(new_structure, *args, **kwargs)

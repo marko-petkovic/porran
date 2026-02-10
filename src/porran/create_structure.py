@@ -2,12 +2,8 @@ import logging
 from typing import List, Optional
 
 import numpy as np
-from numpy import ndarray
 from pymatgen.core import Molecule, Structure, Lattice
-from pymatgen.io.cif import CifParser
-
 from itertools import permutations
-from scipy import spatial
 
 from .transformations import rotation_axis_angle
 from .utils import extract_linkers, read_cif_bonds, readcif, number_to_atom, mean_frac_pbc
@@ -76,48 +72,6 @@ def create_zeo(structure: Structure, mask, replacement_inds, modify_O_connected_
 
     return [structure_copy]
 
-# TODO: Generalize capping functions for different metals and cap groups
-def cap_with_OH(structure: Structure, ox_ind: int, dists: ndarray):
-    # find the nearest Al atom to the oxygen
-    ox_site = structure[ox_ind]
-    # mask Al atoms in dists (distance matrix)
-    al_inds = [i for i, site in enumerate(structure) if site.species_string == "Al"]
-  
-    al_dists = dists[ox_ind][al_inds]
-
-    nearest_al_ind = al_inds[np.argmin(al_dists)]
-    al_site = structure[nearest_al_ind]
-    lattice = structure.lattice
-    frac_O = lattice.get_fractional_coords(ox_site.coords) # type: ignore
-    frac_Al = lattice.get_fractional_coords(al_site.coords) # type: ignore
-    dfrac = frac_O - frac_Al
-    dfrac -= np.round(dfrac)      # wrap to [-0.5, 0.5] along each axis
-    vec_OA = lattice.get_cartesian_coords(dfrac)
-    vec_OA /= np.linalg.norm(vec_OA)
-    h_coords = ox_site.coords + BOND_LEN_OH * vec_OA # type: ignore
-
-    return h_coords
-
-def cap_with_H2O(structure: Structure, ox_ind: int, dists: ndarray):
-    # find the nearest Al atom to the oxygen
-    ox_site = structure[ox_ind]
-    # mask Al atoms in dists (distance matrix)
-    al_inds = [i for i, site in enumerate(structure) if site.species_string == "Al"]
-
-    al_dists = dists[ox_ind][al_inds]
-
-    nearest_al_ind = al_inds[np.argmin(al_dists)]
-    al_site = structure[nearest_al_ind]
-    lattice = structure.lattice
-    frac_O = lattice.get_fractional_coords(ox_site.coords) # type: ignore
-    frac_Al = lattice.get_fractional_coords(al_site.coords) # type: ignore
-    dfrac = frac_O - frac_Al
-    dfrac -= np.round(dfrac)      # wrap to [-0.5, 0.5] along each axis
-    vec_OA = lattice.get_cartesian_coords(dfrac)
-    vec_OA /= np.linalg.norm(vec_OA)
-    
-    if abs(vec_OA[0]) < 0.9:
-        perp = np.array([1.0, 0.0, 0.0])
 
 
 
@@ -128,20 +82,7 @@ def random_sample_only_replace_if_needed(choices: List, num_samples:int) -> List
         return np.random.choice(choices, size=num_samples, replace=False).tolist()
     else:
         perp = np.array([0.0, 1.0, 0.0])
-    # Make it perpendicular
-    v_perp = perp - np.dot(perp, vec_OA) * vec_OA
-    v_perp /= np.linalg.norm(v_perp)
-
-    # Rotate perpendicular vector to set HOH angle
-    angle_rad = np.radians(HOH_ANGLE / 2)
-    h1_coords = ox_site.coords + BOND_LEN_OH * ( # type: ignore
-        np.cos(angle_rad) * vec_OA + np.sin(angle_rad) * v_perp
-    )
-    h2_coords = ox_site.coords + BOND_LEN_OH * ( # type: ignore
-        np.cos(angle_rad) * vec_OA - np.sin(angle_rad) * v_perp
-    )
-
-    return h1_coords, h2_coords
+    
 
         n_full, rem = divmod(num_samples, len(choices))
         samples = choices * n_full
@@ -305,70 +246,6 @@ def create_defect_mof(
                         coords=coords,
                         coords_are_cartesian=True
                     )
-
-    # n_vacancies = sum([len(metals_to_cap[metal]) for metal in metals_to_cap])
-    # cap_groups = (n_vacancies // 2 )* ["OH", "H2O"]
-    # if n_vacancies % 2 == 1:
-    #     cap_groups.append("OH")
-    # np.random.shuffle(cap_groups)
-
-    # for open_metal in metals_to_cap:
-        
-    #     # TODO: add better logic for how to choose capping groups
-    #     # for now, just cap with H2O and OH. Randomly assign
-        
-        
-        
-    #     for idx, bonded_ind in enumerate(metals_to_cap[open_metal]):
-    #         cap = cap_groups.pop(0)
-    #         if cap not in capping_functions:
-    #             raise ValueError(f"Unknown cap group: {cap}")
-    #         new_atoms = capping_functions[cap](structure.lattice, old_sites, open_metal, bonded_ind)
-    #         for symbol, coords in new_atoms:
-    #             structure_copy.append(species=symbol, coords=coords, coords_are_cartesian=True)
-                
-            # if cap == "OH":
-            #     h_coord, o_coord = capping_functions["OH"](structure, open_metal, bonded_ind)
-            #     structure_copy.append(species="H", coords=h_coord, coords_are_cartesian=True)
-            #     structure_copy.append(species="O", coords=o_coord, coords_are_cartesian=True)
-            # elif cap == "H2O":
-            #     h1_coord, h2_coord, o_coord = capping_functions["H2O"](structure, open_metal, bonded_ind)
-            #     structure_copy.append(species="H", coords=h1_coord, coords_are_cartesian=True)
-            #     structure_copy.append(species="H", coords=h2_coord, coords_are_cartesian=True)
-            #     structure_copy.append(species="O", coords=o_coord, coords_are_cartesian=True)
-            # else:
-            #     raise ValueError(f"Unknown cap group: {cap}")
-    for linker_inds in replacement_inds:
-        linker = linkers[linker_inds]
-        o_inds = [ind for ind in linker if structure[ind].species_string == "O"] # type: ignore
-
-        # find the two oxygens that are furthest apart
-        # these two oxygens will be capped with H20, the rest with OH
-
-        coords = structure.frac_coords[o_inds]
-        dist_matrix = structure.lattice.get_all_distances(coords, coords)
-        flat_idx_sorted = np.argsort(dist_matrix, axis=None)[::-1]
-
-        # directly take the SECOND largest index (list is symmetric, so second largest is at index 2/3)
-        max2_idx = flat_idx_sorted[2]
-
-        i, j = np.unravel_index(max2_idx, dist_matrix.shape)
-        k, l = set(range(len(o_inds))) - {i, j} # type: ignore get the other indices
-
-        # add oxygens in the structure copy
-        for o_ind in o_inds:
-            structure_copy.append(species="O", coords=structure[o_ind].coords, coords_are_cartesian=True) # type: ignore
-
-        # cap oxygens (h2o)
-        h2o_h1, h2o_h2 = cap_with_H2O(structure, o_inds[i], dist_maxtrix_struct)
-        h2o_h3, h2o_h4 = cap_with_H2O(structure, o_inds[j], dist_maxtrix_struct)
-
-        # cap oxygens (oh)
-        oh_h1 = cap_with_OH(structure, o_inds[k], dist_maxtrix_struct)
-        oh_h2 = cap_with_OH(structure, o_inds[l], dist_maxtrix_struct)
-
-        for h_coord in [oh_h1, oh_h2, h2o_h1, h2o_h2, h2o_h3, h2o_h4]:
-            structure_copy.append(species="H", coords=h_coord, coords_are_cartesian=True)
     
     return [structure_copy]
 
@@ -380,9 +257,9 @@ def balance_charges(lattice: Lattice, positions: List[List[float]], caps: List[s
 
 
     assert len(positions) == len(cap_charges), "Positions and cap_charges must have the same length"
-    positions = np.array(positions)
+    positions = np.array(positions) # type: ignore
     # get geometric center of positions
-    center_frac = mean_frac_pbc(positions)
+    center_frac = mean_frac_pbc(positions) # type: ignore
 
     # get vectors from center to each position
     vecs = []
@@ -403,7 +280,7 @@ def balance_charges(lattice: Lattice, positions: List[List[float]], caps: List[s
             best_score = score
             best_permutation = perm
 
-    return [caps[i] for i in best_permutation]
+    return [caps[i] for i in best_permutation] # type: ignore
 
 def create_dmof(
     structure: Structure,

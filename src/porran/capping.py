@@ -1,3 +1,5 @@
+"""Geometry helpers for adding charge-balancing cap groups to open metal sites."""
+
 from pymatgen.core.structure import Structure, Lattice
 import numpy as np
 from typing import List, Tuple
@@ -47,7 +49,7 @@ def cap_with_OH(lattice: Lattice, sites: List[Tuple[str, np.ndarray]], open_ind:
 
 def cap_with_H2O(lattice: Lattice, sites: List[Tuple[str, np.ndarray]], open_ind: int, bonded_ind: int):
     """
-    Caps a metal center with open coordination sites with OH.
+    Caps a metal center with an H2O group.
     Parameters
     ----------
     lattice: Lattice

@@ -6,11 +6,155 @@ from pymatgen.core import Molecule, Structure, Lattice
 from itertools import permutations
 
 from .transformations import rotation_axis_angle
-from .utils import extract_linkers, read_cif_bonds, readcif, number_to_atom, mean_frac_pbc
+from .utils import (
+    expand_frac_positions,
+    extract_linkers,
+    mean_frac_pbc,
+    normalize_supercell,
+    number_to_atom,
+    read_cif_bonds,
+    readcif,
+)
 from .capping import capping_functions, CAP_CHARGE
 
 
 logger = logging.getLogger(__name__)
+
+
+def _selection_to_indices(selection):
+    """Normalize replacement selection into an explicit list of indices."""
+    sel = np.array(selection)
+
+    if sel.dtype == bool:
+        return np.where(sel)[0].tolist()
+
+    if np.issubdtype(sel.dtype, np.integer):
+        return sel.astype(int).tolist()
+
+    raise ValueError("replacement_inds must be an integer index array or a boolean mask")
+
+
+def _expand_linkers(linkers, n_atoms_unit, supercell):
+    """Replicate unit-cell linker atom indices across a supercell."""
+    sx, sy, sz = supercell
+    n_cells = sx * sy * sz
+    expanded = []
+    for cell_idx in range(n_cells):
+        offset = cell_idx * n_atoms_unit
+        for linker in linkers:
+            expanded.append([atom_idx + offset for atom_idx in linker])
+    return expanded
+
+
+def _expand_bonds(bond_i, bond_j, bond_jimage, n_atoms_unit, supercell):
+    """Expand unit-cell bonds to a supercell, preserving boundary-crossing connectivity."""
+    sx, sy, sz = supercell
+
+    cell_coords = []
+    for ix in range(sx):
+        for iy in range(sy):
+            for iz in range(sz):
+                cell_coords.append((ix, iy, iz))
+
+    cell_to_idx = {coord: idx for idx, coord in enumerate(cell_coords)}
+
+    expanded_i = []
+    expanded_j = []
+    for source_cell in cell_coords:
+        source_idx = cell_to_idx[source_cell]
+        source_offset = source_idx * n_atoms_unit
+
+        for i, j, jimg in zip(bond_i, bond_j, bond_jimage):
+            target_cell = (
+                (source_cell[0] + jimg[0]) % sx,
+                (source_cell[1] + jimg[1]) % sy,
+                (source_cell[2] + jimg[2]) % sz,
+            )
+            target_idx = cell_to_idx[target_cell]
+            target_offset = target_idx * n_atoms_unit
+
+            expanded_i.append(i + source_offset)
+            expanded_j.append(j + target_offset)
+
+    return expanded_i, expanded_j
+
+
+def _build_frac_index_map(frac_positions: np.ndarray, decimals: int = 6, wrap: bool = True):
+    """Build a map from rounded fractional coordinates to atom indices."""
+    mapping = {}
+    for idx, frac in enumerate(frac_positions):
+        if wrap:
+            key = tuple(np.round(np.mod(frac, 1.0), decimals=decimals))
+        else:
+            key = tuple(np.round(frac, decimals=decimals))
+        mapping.setdefault(key, []).append(idx)
+    return mapping
+
+
+def _build_linker_to_mof_map(
+    linker_frac_positions: np.ndarray,
+    mof_frac_positions: np.ndarray,
+    decimals: int = 6,
+):
+    """Map each linker atom index (unit cell) to an atom index in mof_asr (unit cell)."""
+    frac_index_map = _build_frac_index_map(mof_frac_positions, decimals=decimals)
+    linker_to_mof = {}
+    for linker_idx, frac in enumerate(linker_frac_positions):
+        key = tuple(np.round(np.mod(frac, 1.0), decimals=decimals))
+        candidates = frac_index_map.get(key, [])
+        if not candidates:
+            continue
+        linker_to_mof[linker_idx] = candidates.pop()
+    return linker_to_mof
+
+
+def _build_unit_cell_linker_bonds(
+    linker_indices: List[int],
+    linkers: List[List[int]],
+    linker_to_mof_unit: dict,
+    bond_i: List[int],
+    bond_j: List[int],
+    n_linker_atoms_unit: int,
+    n_mof_atoms_unit: int,
+):
+    """
+    Build a map: linker_id → list of (metal_mof_idx, linker_atom_mof_idx) pairs.
+    This represents the unit-cell bond topology for removed linkers.
+    """
+    linker_bonds = {}  # linker_id → [(metal_idx, linker_atom_idx), ...]
+    
+    for linker_id in linker_indices:
+        linker_bonds[linker_id] = []
+    
+    # Build set of removed linker atoms in MOF
+    atoms_to_remove_in_mof = set()
+    for linker_id in linker_indices:
+        for atom_idx in linkers[linker_id]:
+            mof_idx = linker_to_mof_unit.get(atom_idx)
+            if mof_idx is not None:
+                atoms_to_remove_in_mof.add(mof_idx)
+    
+    # Find bonds between removed atoms and kept atoms
+    for i, j in zip(bond_i, bond_j):
+        # Check if bond crosses removed/kept boundary
+        if (i in atoms_to_remove_in_mof and j not in atoms_to_remove_in_mof) or \
+           (j in atoms_to_remove_in_mof and i not in atoms_to_remove_in_mof):
+            
+            # Identify which side is linker vs metal
+            if i in atoms_to_remove_in_mof:
+                linker_mof_idx = i
+                metal_mof_idx = j
+            else:
+                linker_mof_idx = j
+                metal_mof_idx = i
+            
+            # Find which linker_id this linker atom belongs to
+            for linker_id in linker_indices:
+                if linker_mof_idx in [linker_to_mof_unit.get(a) for a in linkers[linker_id]]:
+                    linker_bonds[linker_id].append((metal_mof_idx, linker_mof_idx))
+                    break
+    
+    return linker_bonds
 
 
 
@@ -76,7 +220,7 @@ def create_zeo(structure: Structure, mask, replacement_inds, modify_O_connected_
 
 
 def random_sample_only_replace_if_needed(choices: List, num_samples:int) -> List:
-    """Randomly sample from choices, only replacing if num_samples > len(choices)"""
+    """Sample from choices without replacement when possible, with fallback repetition."""
 
     if num_samples <= len(choices):
         return np.random.choice(choices, size=num_samples, replace=False).tolist()
@@ -97,6 +241,7 @@ def create_defect_mof(
     replacement_inds: np.ndarray,
     cap_group: List[str] = ["OH","H2O"], # currently useless
     download_path: str = "downloads",
+    supercell=(1, 1, 1),
     *args,
     **kwargs,
 ):
@@ -115,15 +260,60 @@ def create_defect_mof(
         Path in which files processed by mofid are downloaded.
     """
 
-    dist_maxtrix_struct = structure.distance_matrix
-    
-    replacement_inds = np.where(replacement_inds)[0].tolist()
+    supercell = normalize_supercell(supercell)
+
+    replacement_inds = _selection_to_indices(replacement_inds)
 
     linkers, _ = extract_linkers(download_path=download_path)
     _, _, frac_pos = readcif(f'{download_path}/linkers.cif')
 
     _, atomtypes_mof, frac_pos_mof = readcif(f'{download_path}/mof_asr.cif')
-    bond_i, bond_j, _ = read_cif_bonds(f'{download_path}/mof_asr.cif')
+    bond_i, bond_j, bond_jimage = read_cif_bonds(f'{download_path}/mof_asr.cif')
+
+    frac_pos_unit = np.array(frac_pos)
+    frac_pos_mof_unit = np.array(frac_pos_mof)
+    atomtypes_mof_unit = np.array(atomtypes_mof)
+
+    linker_to_mof_unit = _build_linker_to_mof_map(frac_pos_unit, frac_pos_mof_unit)
+
+    n_linker_atoms_unit = len(frac_pos_unit)
+    n_mof_atoms_unit = len(atomtypes_mof_unit)
+    n_linkers_unit = len(linkers)
+
+    # In supercell mode replacement_inds are indices in the expanded linker list.
+    # Keep them as-is (sampled defects are independent of supercell size), but also
+    # compute which unit-linker templates are needed for bond replication.
+    if supercell != (1, 1, 1):
+        unit_replacement_inds = sorted(set(linker_id % n_linkers_unit for linker_id in replacement_inds))
+    else:
+        unit_replacement_inds = replacement_inds
+
+    # Build unit-cell bond template for the linkers to be removed
+    linker_bonds_unit = _build_unit_cell_linker_bonds(
+        unit_replacement_inds,
+        linkers,
+        linker_to_mof_unit,
+        bond_i,
+        bond_j,
+        n_linker_atoms_unit,
+        n_mof_atoms_unit,
+    )
+
+    if supercell != (1, 1, 1):
+        linkers = _expand_linkers(linkers, n_linker_atoms_unit, supercell)
+        frac_pos = expand_frac_positions(frac_pos_unit, supercell)
+        frac_pos_mof = expand_frac_positions(frac_pos_mof_unit, supercell)
+        atomtypes_mof = np.tile(atomtypes_mof, int(np.prod(supercell)))
+        bond_i, bond_j = _expand_bonds(bond_i, bond_j, bond_jimage, n_mof_atoms_unit, supercell)
+
+        expected_sites = len(atomtypes_mof)
+        if len(structure) != expected_sites:
+            structure = structure.copy()
+            structure.make_supercell(supercell)
+    else:
+        frac_pos = frac_pos_unit
+        frac_pos_mof = frac_pos_mof_unit
+        atomtypes_mof = atomtypes_mof_unit
 
 
 
@@ -135,35 +325,64 @@ def create_defect_mof(
 
     # TODO: calculate charges of missing linkers
 
-    for linker_id, linker_inds in enumerate(replacement_inds):
-        for atom in linkers[linker_inds]:
-            atoms_to_remove.append(atom)
-            atom_to_linker[atom] = linker_id   # assign ID per linker
-    frac_pos_to_remove = frac_pos[atoms_to_remove]
 
+    # Build atoms_to_remove by expanding replacement_inds appropriately
+    if supercell == (1, 1, 1):
+        # Unit cell: direct mapping from replacement_inds to linker atoms
+        for linker_id, linker_inds in enumerate(replacement_inds):
+            for atom in linkers[linker_inds]:
+                atoms_to_remove.append(atom)
+                atom_to_linker[atom] = linker_inds  # Use actual linker ID
+    else:
+        # Supercell: replacement_inds already point to specific expanded linkers.
+        # Remove only the sampled linker instances.
+        n_cells = int(np.prod(supercell))
+        n_linkers_expanded = n_linkers_unit * n_cells
+        for linker_id in replacement_inds:
+            if linker_id < 0 or linker_id >= n_linkers_expanded:
+                raise ValueError(
+                    f"replacement linker index {linker_id} out of bounds for expanded linker list of size {n_linkers_expanded}"
+                )
+            for atom in linkers[linker_id]:
+                atoms_to_remove.append(atom)
+                atom_to_linker[atom] = linker_id
 
-    # TODO: count removed charges
-    # find atom index in mof
+    # Identify atoms removed in MOF and create idxes_to_remove_in_mof
     idxes_to_remove_in_mof = []
-    atom_to_linker_mof = {}  # linker id mapped to MOF index
-
-    for frac_pos_r, original_atom_idx in zip(frac_pos_to_remove, atoms_to_remove):
-        for idx_mof, frac_pos_m in enumerate(frac_pos_mof):
-            if np.allclose(frac_pos_r, frac_pos_m, atol=1e-3):
-                idxes_to_remove_in_mof.append(idx_mof)
-                atom_to_linker_mof[idx_mof] = atom_to_linker[original_atom_idx]
-                break
-
+    atom_to_linker_mof = {}
     
-    # identify bonds between atoms to remove and atoms to keep
-    # these bonds will be used to identify metal centers that need capping
-    bonds_to_replace = []
-    for i, j in zip(bond_i, bond_j):
-        if (i in idxes_to_remove_in_mof and j not in idxes_to_remove_in_mof) or \
-           (j in idxes_to_remove_in_mof and i not in idxes_to_remove_in_mof):
-            linker_id = atom_to_linker_mof[i] if i in atom_to_linker_mof else atom_to_linker_mof[j]
+    for atom_idx in atoms_to_remove:
+        cell_idx_linker = atom_idx // n_linker_atoms_unit
+        local_idx_linker = atom_idx % n_linker_atoms_unit
+        
+        mof_local_idx = linker_to_mof_unit.get(local_idx_linker)
+        if mof_local_idx is None:
+            continue
+        
+        # Map to MOF index in the same cell
+        mof_idx = cell_idx_linker * n_mof_atoms_unit + mof_local_idx
+        idxes_to_remove_in_mof.append(mof_idx)
+        atom_to_linker_mof[mof_idx] = atom_to_linker[atom_idx]
 
-            bonds_to_replace.append((i, j, linker_id))
+    # Identify bonds between removed and kept atoms using the unit-cell template and replicate in supercell
+    bonds_to_replace = []
+    
+    if supercell == (1, 1, 1):
+        # Unit cell: use direct linker_bonds_unit
+        for linker_id in unit_replacement_inds:
+            for metal_mof_idx, linker_mof_idx in linker_bonds_unit.get(linker_id, []):
+                bonds_to_replace.append((linker_mof_idx, metal_mof_idx, linker_id))
+    else:
+        # Supercell: build boundary bonds only for sampled expanded linker instances.
+        for linker_id in replacement_inds:
+            cell_idx = linker_id // n_linkers_unit
+            unit_linker_id = linker_id % n_linkers_unit
+            cell_offset_mof = cell_idx * n_mof_atoms_unit
+
+            for metal_mof_idx, linker_mof_idx in linker_bonds_unit.get(unit_linker_id, []):
+                linker_mof_idx_sc = linker_mof_idx + cell_offset_mof
+                metal_mof_idx_sc = metal_mof_idx + cell_offset_mof
+                bonds_to_replace.append((linker_mof_idx_sc, metal_mof_idx_sc, linker_id))
 
 
     ### ------------------------------------------------------------------------ ###
@@ -252,7 +471,7 @@ def create_defect_mof(
 
 def balance_charges(lattice: Lattice, positions: List[List[float]], caps: List[str], cap_charges: List[float]) -> List[str]:
     """
-    Finds the best permutation of the caps to minimize the dipole moment created by the capping groups.
+    Assign capping groups to vacancy positions to minimize net dipole magnitude.
     """
 
 
@@ -269,6 +488,24 @@ def balance_charges(lattice: Lattice, positions: List[List[float]], caps: List[s
         vec = lattice.get_cartesian_coords(dfrac)
         vecs.append(vec)
     vecs = np.array(vecs)
+    # Exact search scales as O(n!), so for larger vacancy sets use a greedy fallback.
+    if len(caps) > 9:
+        remaining = list(range(len(caps)))
+        assigned = []
+        dipole = np.zeros(3)
+        for i in range(len(caps)):
+            best_idx = None
+            best_score = float("inf")
+            for cap_idx in remaining:
+                score = np.linalg.norm(dipole + vecs[i] * cap_charges[cap_idx])
+                if score < best_score:
+                    best_score = score
+                    best_idx = cap_idx
+            assigned.append(best_idx)
+            remaining.remove(best_idx) # type: ignore[arg-type]
+            dipole += vecs[i] * cap_charges[best_idx] # type: ignore[index]
+        return [caps[i] for i in assigned]
+
     best_score = float('inf')
     best_permutation = None
     for perm in permutations(range(len(caps))):

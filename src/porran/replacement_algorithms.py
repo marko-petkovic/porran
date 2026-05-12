@@ -1,3 +1,5 @@
+"""Node-selection algorithms used for substitutions on structure graphs."""
+
 import numpy as np
 
 import networkx as nx

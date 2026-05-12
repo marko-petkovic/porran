@@ -1,3 +1,5 @@
+"""Utilities to fetch framework CIFs by IZA zeolite code."""
+
 import requests
 from pymatgen.io.cif import CifParser
 from io import StringIO

@@ -1,3 +1,5 @@
+"""Mask creation helpers for selecting subsets of structure sites."""
+
 from typing import Callable, List
 
 import numpy as np

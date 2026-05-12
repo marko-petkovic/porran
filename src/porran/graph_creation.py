@@ -1,3 +1,5 @@
+"""Graph builders for zeolites, MOFs, and generic radius-based networks."""
+
 import os
 from pymatgen.core import Structure
 
@@ -8,9 +10,29 @@ from typing import List, Optional, Dict
 
 import warnings
 
-from .utils import extract_linkers
+from .utils import expand_frac_positions, extract_linkers, normalize_supercell
 from .mof_linkers_nodes import download_mof_nodes_linkers
 
+
+def _mofid_cache_files(download_path: str):
+    """Return expected MOFid cache file paths for a download directory."""
+    return [
+        os.path.join(download_path, "linkers.cif"),
+        os.path.join(download_path, "mof_asr.cif"),
+        os.path.join(download_path, "nodes.cif"),
+    ]
+
+
+def _has_mofid_cache(download_path: str) -> bool:
+    """Check whether all required MOFid cache files are present."""
+    return all(os.path.exists(path) for path in _mofid_cache_files(download_path))
+
+
+def _clear_mofid_cache(download_path: str):
+    """Delete cached MOFid decomposition files if they exist."""
+    for path in _mofid_cache_files(download_path):
+        if os.path.exists(path):
+            os.remove(path)
 
 
 def mof_graph(structure : Structure, radius : float, download_path: str, cif_path: str, *args, **kwargs):
@@ -28,20 +50,29 @@ def mof_graph(structure : Structure, radius : float, download_path: str, cif_pat
     nx.Graph
         Graph of the MOF
     '''
-    # delete any linkers.cif, mof_asr.cif, nodes.cif in download_path
-    
-    for filename in ["linkers.cif", "mof_asr.cif", "nodes.cif"]:
-        file_path = os.path.join(download_path, filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+    # Reuse cached MOFid outputs when available to avoid repeated website calls.
+    # Set force_refresh=True to clear cache and trigger a fresh extraction.
+    force_refresh = bool(kwargs.get("force_refresh", False))
 
-    # HERE: download files from mofid
-    _ = download_mof_nodes_linkers(cif_path, download_path)
+    if force_refresh:
+        _clear_mofid_cache(download_path)
+
+    if not _has_mofid_cache(download_path):
+        _ = download_mof_nodes_linkers(cif_path, download_path)
 
 
     _, linkers_pos_frac = extract_linkers(download_path)
+    linkers_pos_frac = np.array(linkers_pos_frac)
 
-    lattice = structure.lattice
+    supercell = normalize_supercell(kwargs.get("supercell", (1, 1, 1)))
+
+    if supercell != (1, 1, 1):
+        linkers_pos_frac = expand_frac_positions(linkers_pos_frac, supercell)
+        structure_supercell = structure.copy()
+        structure_supercell.make_supercell(supercell)
+        lattice = structure_supercell.lattice
+    else:
+        lattice = structure.lattice
 
     N = len(linkers_pos_frac)
 

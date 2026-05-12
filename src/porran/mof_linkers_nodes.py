@@ -1,3 +1,9 @@
+"""Utilities to download linker/node decomposition files for MOFs.
+
+The module automates interaction with the web-MOFid page and retrieves
+the generated `nodes.cif`, `linkers.cif`, and `mof_asr.cif` files.
+"""
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -18,6 +24,22 @@ def wait_for_file(file_path: Path, timeout=20):
 
 
 def download_mof_nodes_linkers(cif_path, download_path="downloads", debug=False):
+    """Download MOFid decomposition files for a CIF structure.
+
+    Parameters
+    ----------
+    cif_path : str
+        Path to the source CIF file that will be uploaded to web-MOFid.
+    download_path : str, optional
+        Local output directory for downloaded files.
+    debug : bool, optional
+        If True, run Chrome with UI enabled for troubleshooting.
+
+    Returns
+    -------
+    tuple[pathlib.Path, pathlib.Path, pathlib.Path]
+        Paths to downloaded `nodes.cif`, `linkers.cif`, and `mof_asr.cif`.
+    """
     download_dir = Path(download_path).absolute()
     download_dir.mkdir(parents=True, exist_ok=True)
 

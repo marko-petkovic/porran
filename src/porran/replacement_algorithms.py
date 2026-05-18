@@ -308,47 +308,55 @@ def maximize_entropy(G : nx.Graph, n_subs : int, stochastic : bool = False, scal
     np.array
         Array of selected nodes
     '''
-    G = deepcopy(G)
+    nodes = tuple(G.nodes())
+    n_nodes = len(nodes)
 
-    selected_nodes = set()
-    remaining_nodes = set(G.nodes())
+    if n_subs > n_nodes:
+        raise ValueError('Number of substitutions is too large for the structure')
+    if n_subs <= 0:
+        return np.array([], dtype=int)
 
-    # Select a random node to start
-    selected_node = np.random.choice(list(remaining_nodes))
-    selected_nodes.add(selected_node)
-    remaining_nodes.remove(selected_node)
+    node_array = np.array(nodes, dtype=object)
+    selected_mask = np.zeros(n_nodes, dtype=bool)
+    distance_sums = np.zeros(n_nodes, dtype=float)
 
-    # Continue until desired number of nodes is selected
+    selected_idx = np.random.randint(n_nodes)
+    selected_mask[selected_idx] = True
+    selected_nodes = [node_array[selected_idx]]
+
+    try:
+        distance_sums += np.fromiter(
+            (nx.single_source_shortest_path_length(G, selected_nodes[0])[node] for node in nodes),
+            dtype=float,
+            count=n_nodes,
+        )
+    except KeyError as exc:
+        raise ValueError('Graph must be connected to use maximize_entropy') from exc
+
     while len(selected_nodes) < n_subs:
-        max_avg_distance = -1
-        selected_node = None
+        candidate_indices = np.flatnonzero(~selected_mask)
+        candidate_scores = distance_sums[candidate_indices] / len(selected_nodes)
 
-        distances = np.zeros(len(remaining_nodes))
-        x = 0
-        # Calculate average distance for each remaining node
-        for node in remaining_nodes:
-            avg_distance = np.mean([nx.shortest_path_length(G, node, selected_node)
-                                    for selected_node in selected_nodes])
-            
-            distances[x] = avg_distance
-
-            # if we are using the deterministic method
-            if not stochastic and avg_distance > max_avg_distance:
-                max_avg_distance = avg_distance
-                selected_node = node
-
-            x += 1
-        
-        # if we are using the stochastic method
-        if stochastic > 0:
-            
-            probs = np.exp(scaling * distances)
+        if stochastic:
+            logits = scaling * candidate_scores
+            logits -= np.max(logits)
+            probs = np.exp(logits)
             probs /= np.sum(probs)
-            selected_node = np.random.choice(list(remaining_nodes), p=probs)
+            selected_idx = np.random.choice(candidate_indices, p=probs)
+        else:
+            selected_idx = candidate_indices[np.argmax(candidate_scores)]
 
+        selected_mask[selected_idx] = True
+        selected_node = node_array[selected_idx]
+        selected_nodes.append(selected_node)
 
-        # Add the node with maximum average distance to selected nodes
-        selected_nodes.add(selected_node)
-        remaining_nodes.remove(selected_node)
+        try:
+            distance_sums += np.fromiter(
+                (nx.single_source_shortest_path_length(G, selected_node)[node] for node in nodes),
+                dtype=float,
+                count=n_nodes,
+            )
+        except KeyError as exc:
+            raise ValueError('Graph must be connected to use maximize_entropy') from exc
 
-    return np.array(list(selected_nodes))
+    return np.array(selected_nodes)

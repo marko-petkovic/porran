@@ -206,6 +206,9 @@ def readcif(name):
         atomlines = []
         counter = 0
         cell_parameter_boundary = [0.0, 0.0]
+        cell_a = cell_b = cell_c = None
+        cell_alpha = cell_beta = cell_gamma = None
+        type_index = fracx_index = fracy_index = fracz_index = None
         for line in EIF:
             line_stripped = line.strip()
             if (not line) or line_stripped.startswith("#"):
@@ -256,6 +259,39 @@ def readcif(name):
                     if len(line_splitted) == atom_props_count:
                         atomlines.append(line)
             counter += 1
+
+        missing_cell_fields = [
+            field_name
+            for field_name, field_value in (
+                ("_cell_length_a", cell_a),
+                ("_cell_length_b", cell_b),
+                ("_cell_length_c", cell_c),
+                ("_cell_angle_alpha", cell_alpha),
+                ("_cell_angle_beta", cell_beta),
+                ("_cell_angle_gamma", cell_gamma),
+            )
+            if field_value is None
+        ]
+        if missing_cell_fields:
+            raise ValueError(
+                f"CIF file is missing required cell fields: {', '.join(missing_cell_fields)}"
+            )
+
+        missing_atom_fields = [
+            field_name
+            for field_name, field_value in (
+                ("_atom_site_label", type_index),
+                ("_atom_site_fract_x", fracx_index),
+                ("_atom_site_fract_y", fracy_index),
+                ("_atom_site_fract_z", fracz_index),
+            )
+            if field_value is None
+        ]
+        if missing_atom_fields:
+            raise ValueError(
+                f"CIF file is missing required atom-site fields: {', '.join(missing_atom_fields)}"
+            )
+
         positions = []
         atomtypes = []
         for _, at in enumerate(atomlines):

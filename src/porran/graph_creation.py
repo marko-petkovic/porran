@@ -216,6 +216,10 @@ def check_graph(G : nx.Graph):
     n_edges = len(G.edges)
     if n_edges == 0:
         warnings.warn('Graph has no edges')
+
+    if G.number_of_nodes() == 0:
+        warnings.warn('Graph is empty')
+        return
     
     conn = nx.is_connected(G)
     if not conn:

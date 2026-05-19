@@ -347,6 +347,7 @@ class PORRAN:
         ) # type: ignore
 
         graph_kwargs = dict(self.graph_kwargs)
+        graph_kwargs.pop("supercell", None)
         if self.graph_method == mof_graph:
             if self.cif_path is None:
                 raise ValueError("cif_path is required for mof graph generation")

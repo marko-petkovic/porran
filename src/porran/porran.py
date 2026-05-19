@@ -55,9 +55,14 @@ class PORRAN:
 
         if cif_path is not None:
             self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
-            self.init_structure(cif_path, graph_method, mask_method, download_path=download_path, *args, **kwargs)
         if seed is not None:
             self.set_seed(seed)
+
+    def _store_generation_inputs(self, mask_method, args, kwargs):
+        """Persist the current mask and graph arguments for later reuse."""
+        self.mask_method_input = mask_method
+        self.graph_args = args
+        self.graph_kwargs = dict(kwargs)
 
     def init_structure(
         self,
@@ -94,12 +99,10 @@ class PORRAN:
         None
         """
         # name is the name of the cif file
-        self.name = cif_path.split("/")[-1].split(".")[0]
+        self.name = os.path.splitext(os.path.basename(cif_path))[0]
         self.cif_path = cif_path
         self.download_path = download_path
-        self.mask_method_input = mask_method
-        self.graph_args = args
-        self.graph_kwargs = dict(kwargs)
+        self._store_generation_inputs(mask_method, args, kwargs)
         self.structure = self._read_structure(cif_path, check_cif)
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
@@ -134,14 +137,9 @@ class PORRAN:
         """
         self.name = zeolite_code
         self.cif_path = None
-        self.mask_method_input = mask_method
-        self.graph_args = args
-        self.graph_kwargs = dict(kwargs)
+        self._store_generation_inputs(mask_method, args, kwargs)
         self.structure = get_zeolite(zeolite_code)
         self.graph_method = self._get_graph_method(graph_method)
-        self.mask_method_input = mask_method
-        self.graph_args = args
-        self.graph_kwargs = dict(kwargs)
         self.mask_method = self._get_mask_method(mask_method)
         self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
@@ -170,6 +168,7 @@ class PORRAN:
         """
         self.graph_method = self._get_graph_method(graph_method)
         self.mask_method = self._get_mask_method(mask_method)
+        self._store_generation_inputs(mask_method, args, kwargs)
         self.mask = self.mask_method(self.structure, mask_method, *args, **kwargs) # type: ignore
         self.structure_graph = self.graph_method(self.structure, mask=self.mask, *args, **kwargs) # type: ignore
 
@@ -239,15 +238,7 @@ class PORRAN:
         if not modify_O_connected_to_Al:
             modify_O_connected_to_Al_Al = False
 
-        if write:
-            if not os.path.exists(writepath): # type: ignore
-                os.makedirs(writepath) # type: ignore
-            elif not os.listdir(writepath):
-                pass
-            elif not overwrite_ok:
-                raise ValueError(
-                    f"Path {writepath} already contains files. Please provide an empty or non-existing path or set write to False."
-                )
+        writepath = self._prepare_writepath(write, writepath, overwrite_ok)
 
         self.replace_algo = self._get_replace_algo(replace_algo)
         self.create_algo = self._get_create_algo(create_algo)
@@ -255,64 +246,29 @@ class PORRAN:
 
         supercell = normalize_supercell(supercell)
 
-        if supercell == (1, 1, 1):
-            structure_for_creation = self.structure
-            mask_for_creation = self.mask
-            graph_for_replacement = self.structure_graph
-        else:
-            structure_for_creation = self.structure.copy()
-            structure_for_creation.make_supercell(supercell)
-
-            mask_for_creation = self.mask_method(
-                structure_for_creation,
-                self.mask_method_input,
-                *args,
-                **kwargs,
-            ) # type: ignore
-
-            if self.graph_method == mof_graph:
-                if self.cif_path is None:
-                    raise ValueError("cif_path is required for mof graph generation")
-                graph_kwargs = dict(self.graph_kwargs)
-                graph_for_replacement = self.graph_method(
-                    self.structure,
-                    mask=self.mask,
-                    download_path=self.download_path,
-                    cif_path=self.cif_path,
-                    supercell=supercell,
-                    *self.graph_args,
-                    **graph_kwargs,
-                ) # type: ignore
-            else:
-                graph_kwargs = dict(self.graph_kwargs)
-                graph_for_replacement = self.graph_method(
-                    structure_for_creation,
-                    mask=mask_for_creation,
-                    *self.graph_args,
-                    **graph_kwargs,
-                ) # type: ignore
+        structure_for_creation, mask_for_creation, graph_for_replacement = (
+            self._prepare_generation_context(supercell, *args, **kwargs)
+        )
 
         structures = []
 
         total_failed = 0
         failed = 0
+        written_count = 0
 
         start = time()
         for i in range(n_structures):
 
-            # for each structure, try to replace nodes max_tries times
-            for j in range(max_tries):
-                try:
-                    sub_array = self._replace(graph_for_replacement, n_subs, *args, **kwargs)
-                    break
-                except Exception as e:
-                    sub_array = None
-                    total_failed += 1
-                    if print_error:
-                        print(f"Failed to generate new structure: {e}")
+            sub_array, iteration_failed = self._try_replace_until_success(
+                graph_for_replacement,
+                n_subs,
+                max_tries,
+                print_error,
+                *args,
+                **kwargs,
+            )
+            total_failed += iteration_failed
 
-
-            # if the maximum number of tries is reached, skip the structure
             if sub_array is None:
                 failed += 1
                 continue
@@ -332,10 +288,15 @@ class PORRAN:
                 new_structure = self.post_algo(new_structure, *args, **kwargs)
             structures.extend(new_structure)
             if write:
-                for j in range(len(new_structure)):
-                    self._write_structure(
-                        new_structure[j], writepath, i * len(new_structure) + j, struc_name, custom_charges, *args, **kwargs
-                    )
+                written_count = self._write_generated_structures(
+                    new_structure,
+                    writepath,
+                    written_count,
+                    struc_name,
+                    custom_charges,
+                    *args,
+                    **kwargs,
+                )
 
         end = time()
         if verbose:
@@ -345,6 +306,113 @@ class PORRAN:
             print(f"Failed to generate {failed} structures")
             print(f"Failed to generate new structures {total_failed} times")
         return structures
+
+    def _prepare_writepath(
+        self,
+        write: bool,
+        writepath: Optional[str],
+        overwrite_ok: bool,
+    ) -> Optional[str]:
+        """Validate and optionally create the output directory for generated structures."""
+        if not write:
+            return writepath
+
+        if writepath is None:
+            writepath = "structures"
+
+        if not os.path.exists(writepath):
+            os.makedirs(writepath)
+            return writepath
+
+        if os.listdir(writepath) and not overwrite_ok:
+            raise ValueError(
+                f"Path {writepath} already contains files. Please provide an empty or non-existing path or set write to False."
+            )
+
+        return writepath
+
+    def _prepare_generation_context(self, supercell, *args, **kwargs):
+        """Build the structure, mask, and graph used for replacement and creation."""
+        if supercell == (1, 1, 1):
+            return self.structure, self.mask, self.structure_graph
+
+        structure_for_creation = self.structure.copy()
+        structure_for_creation.make_supercell(supercell)
+
+        mask_for_creation = self.mask_method(
+            structure_for_creation,
+            self.mask_method_input,
+            *args,
+            **kwargs,
+        ) # type: ignore
+
+        graph_kwargs = dict(self.graph_kwargs)
+        if self.graph_method == mof_graph:
+            if self.cif_path is None:
+                raise ValueError("cif_path is required for mof graph generation")
+            graph_for_replacement = self.graph_method(
+                self.structure,
+                mask=self.mask,
+                download_path=self.download_path,
+                cif_path=self.cif_path,
+                supercell=supercell,
+                *self.graph_args,
+                **graph_kwargs,
+            ) # type: ignore
+        else:
+            graph_for_replacement = self.graph_method(
+                structure_for_creation,
+                mask=mask_for_creation,
+                *self.graph_args,
+                **graph_kwargs,
+            ) # type: ignore
+
+        return structure_for_creation, mask_for_creation, graph_for_replacement
+
+    def _try_replace_until_success(
+        self,
+        graph,
+        n_subs: int,
+        max_tries: int,
+        print_error: bool,
+        *args,
+        **kwargs,
+    ):
+        """Retry node replacement up to ``max_tries`` times and count failures."""
+        failed_attempts = 0
+        for _ in range(max_tries):
+            try:
+                return self._replace(graph, n_subs, *args, **kwargs), failed_attempts
+            except Exception as exc:
+                failed_attempts += 1
+                if print_error:
+                    print(f"Failed to generate new structure: {exc}")
+
+        return None, failed_attempts
+
+    def _write_generated_structures(
+        self,
+        structures: List[Structure],
+        writepath: Optional[str],
+        start_index: int,
+        struc_name: Optional[str],
+        custom_charges: Optional[Dict[str, float]],
+        *args,
+        **kwargs,
+    ) -> int:
+        """Write generated structures and return the next available output index."""
+        for index, structure in enumerate(structures, start=start_index):
+            self._write_structure(
+                structure,
+                writepath,
+                index,
+                struc_name,
+                custom_charges,
+                *args,
+                **kwargs,
+            )
+
+        return start_index + len(structures)
 
     def _get_mask_method(self, mask_method: Optional[Union[List[str], ndarray, str]]):
         """Resolve a mask-method specifier into a callable mask function."""
@@ -452,7 +520,7 @@ class PORRAN:
 
         write_cif(
             structure,
-            filename=f"{writepath}/{self.name}_{struc_name}_{i}.cif",
+            filename=os.path.join(writepath, f"{self.name}_{struc_name}_{i}.cif"),
             custom_charges=custom_charges,
         )
         
@@ -475,6 +543,8 @@ class PORRAN:
 
     def _get_graph_method(self, graph_method: Optional[Union[str, Callable]] = None):
         """Resolve a graph-construction method name or pass through a callable."""
+        if graph_method is None:
+            raise ValueError("graph_method must be provided before initializing a structure")
         if isinstance(graph_method, str):
             if graph_method == "zeolite":
                 return zeo_graph
